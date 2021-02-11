@@ -1,4 +1,4 @@
-VIRTUALENV?=${HOME}/env-mlim
+VIRTUALENV?=${HOME}/env/mlim-g2
 PORT?=8888
 
 help:
@@ -36,4 +36,4 @@ distclean: clean
 
 run:
 	source $(VIRTUALENV)/bin/activate; \
-	jupyter lab --no-browser --port=$(PORT)
+	jupyter lab --port=$(PORT)
