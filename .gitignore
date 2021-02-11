@@ -127,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+data/coupons.parquet
+data/coupon_index.parquet
+data/baskets.parquet

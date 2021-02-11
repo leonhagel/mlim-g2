@@ -1,3 +1,4 @@
+NAME?="mlim-g2"
 VIRTUALENV?=${HOME}/env/mlim-g2
 PORT?=8888
 
@@ -21,6 +22,7 @@ build-lab: build
 	source $(VIRTUALENV)/bin/activate; \
 	jupyter labextension install jupyterlab-plotly@4.14.1; \
 	jupyter serverextension enable --py jupyterlab_code_formatter
+	python -m ipykernel install --user --name=$(NAME);
 
 freeze:
 	source $(VIRTUALENV)/bin/activate; \
@@ -37,3 +39,6 @@ distclean: clean
 run:
 	source $(VIRTUALENV)/bin/activate; \
 	jupyter lab --port=$(PORT)
+
+clone:
+	git clone https://github.com/sbstn-gbl/mlim.git xx-lecture-github;
