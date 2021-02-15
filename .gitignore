@@ -131,3 +131,8 @@ data/coupons.parquet
 data/coupon_index.parquet
 data/baskets.parquet
 data/merged.parquet
+data/clean.parquet
+data/purchase.parquet
+export/mappings.pkl
+export/prices.parquet
+export/product_histories.parquet

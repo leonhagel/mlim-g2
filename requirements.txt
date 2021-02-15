@@ -1,5 +1,6 @@
 celluloid==0.2.0
 black==20.8b1
+category-encoders==2.2.2
 dict-hash==1.1.14
 gensim==3.8.3
 graphviz==0.16
