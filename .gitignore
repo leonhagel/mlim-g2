@@ -142,3 +142,4 @@ export/merged_left/mappings.pkl
 data/merged_left/purchase.parquet
 data/merged_left/merged.parquet
 data/merged_left/clean.parquet
+data/prepare.parquet

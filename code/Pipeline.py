@@ -169,6 +169,12 @@ class Purchase_Probabilities(Helper):
     
     def __init__(self):
         super().__init__()
+        self.test_week = None
+        self.train_window = None
+        self.df = None
+        self.features = None
+        self.model_type = None
+        self.model = None
         
     
     # creating purchase history features
@@ -238,9 +244,15 @@ class Purchase_Probabilities(Helper):
         return output
         
         
-    def train_test_split(self, test_week, train_window, df='purchase', features='default'):
+    def train_test_split(self, test_week, train_window, df='prepare', features='default'):
         import category_encoders as ce
         from IPython.display import clear_output
+        
+        self.test_week = test_week
+        self.train_window = train_window
+        self.df = df
+        self.features = features
+        
         if type(df) == str:
             df = self.data[df]
         start = test_week - train_window
@@ -275,7 +287,9 @@ class Purchase_Probabilities(Helper):
 
     
     def fit(self, model_type, X_train, y_train, **kwargs):
-        return eval(f"self._fit_{model_type}(X_train, y_train, **kwargs)")
+        self.model_type = model_type
+        self.model = eval(f"self._fit_{model_type}(X_train, y_train, **kwargs)")
+        return self.model
     
     
     def predict(self, model, X):

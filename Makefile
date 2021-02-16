@@ -1,12 +1,12 @@
 NAME?="mlim-g2"
-VIRTUALENV?=${HOME}/env/mlim-g2
+VIRTUALENV?=./env
 PORT?=8888
 
 help:
 	@echo "Make targets:"
 	@echo "  build          install dependencies and prepare environment"
 	@echo "  build-lab      build + lab extensions"
-	@echo "  freeze         persist installed packaged to requirements.txt"
+	@echo "  freeze         view installed packages"
 	@echo "  clean          remove *.pyc files and __pycache__ directory"
 	@echo "  distclean      remove virtual environment"
 	@echo "  run            run jupyter lab (default port $(PORT))"
@@ -26,7 +26,7 @@ build-lab: build
 
 freeze:
 	source $(VIRTUALENV)/bin/activate; \
-	pip freeze > requirements.txt
+	pip freeze
 
 clean:
 	find . -name '*.pyc' -delete
