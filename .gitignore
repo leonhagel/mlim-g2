@@ -136,19 +136,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-data/coupons.parquet
-data/coupon_index.parquet
-data/baskets.parquet
-data/merged.parquet
-data/clean.parquet
-data/purchase.parquet
-export/mappings.pkl
-export/prices.parquet
-export/product_histories.parquet
-export/merged_left/product_histories.parquet
-export/merged_left/prices.parquet
-export/merged_left/mappings.pkl
-data/merged_left/purchase.parquet
-data/merged_left/merged.parquet
-data/merged_left/clean.parquet
-data/prepare.parquet
+
+# data and export directories
+data/
+export/
