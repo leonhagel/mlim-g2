@@ -117,7 +117,8 @@ class Helper:
         df['discount'] = df['discount'] / 100
         df['price'] = df['price'] / (1 - df['discount'])
         # target
-        df['purchased'] = df['price'].notna().astype('int8')    
+        df['purchased'] = df['price'].notna().astype('int8')
+        self.data['clean'] = df
         return df
     
     
@@ -149,6 +150,34 @@ class Helper:
             self.mappings[name] = self._get_mapping(**cnfg)
 
     
+class Prices(Helper):
+    
+    def __init__(self):
+        super().__init__()
+        
+    def pipeline_prices(self, df='all'):
+        """
+        creates: price map for cleaning the prices
+        
+        df='all':
+            - creates the price map based on the complete data set
+            - requires: merged data stored @ self.data['merged']
+        """
+        import numpy as np
+        # specifiying the input data
+        if all([type(df) == str, df == 'all']):
+            df = self.data['merged'].copy()
+            df = self.loc[df['price'].notna(), :]
+
+        # specifying the configuration for the map
+        map_config = {
+            'prices': {'df': df, 'row_name': 'week', 'column_name': 'product', 'value_name': 'price', 'initial_array': []}
+        }
+        self.get_mappings(map_config)
+        return self.mappings['prices']
+        
+    
+        
     def aggregate_price_map(self, aggregation_function='mode', verbose=1):
         from tqdm import tqdm
         import pandas as pd
@@ -162,20 +191,31 @@ class Helper:
             price_map[column] = self.mappings['prices'][column].apply(aggregation_function)
     
         return price_map
-
     
-# Purchase porbabilities
-class Purchase_Probabilities(Helper):
+    
+# creating the history map and purchase history based features
+class Product_Histories(Helper):
     
     def __init__(self):
         super().__init__()
-        self.test_week = None
-        self.train_window = None
-        self.df = None
-        self.features = None
-        self.model_type = None
-        self.model = None
-        
+    
+    # creating the purchase history map
+    def pipeline_histories(self):
+        import numpy as np
+        # specifiying the input data
+        try:
+            df = self.data['clean']
+        except KeyError:
+            df = self.clean() # uses cleaned data only for shoppers 0 to 1999
+        df = df.loc[df['purchased'] == 1, :]    
+
+        # specifying the configuration for the map
+        map_config = {
+            'product_histories': {'df': df, 'row_name': 'shopper', 'column_name': 'product', 'value_name': 'week', 'initial_array': [-np.inf]}
+        }
+        self.get_mappings(map_config)
+        return self.mappings['product_histories']
+    
     
     # creating purchase history features
     def get_history(self, shopper, product, week):
@@ -193,6 +233,18 @@ class Purchase_Probabilities(Helper):
         history = self.get_history(shopper, product, week)
         return np.unique(history[history >= week - trend_window]).shape[0] / trend_window
 
+    
+# Purchase porbabilities
+class Purchase_Probabilities(Product_Histories, Prices):
+    
+    def __init__(self):
+        super().__init__()
+        self.test_week = None
+        self.train_window = None
+        self.df = None
+        self.features = None
+        self.model_type = None
+        self.model = None
 
     def prepare(self, df='clean', shopper=(0,1999), week=(0,89), product=(0,249), price_aggregation_fn='mode'):
         import numpy as np
@@ -211,6 +263,7 @@ class Purchase_Probabilities(Helper):
         week = range(week[0], week[-1]+1) if type(week) != list else week
         product = range(product[0], product[-1]+1) if type(product) != list else product
 
+        # creating the structure of the data
         print(f"[prepare] itertools... (elapsed time: {self._format_time(time.time()-start)})")
         output = pd.DataFrame(itertools.product(shopper, week, product))
         output.rename(columns={0:'shopper', 1:'week', 2:'product'}, inplace=True)
@@ -224,23 +277,33 @@ class Purchase_Probabilities(Helper):
             output['purchased'].fillna(0, inplace=True)
             output['discount'].fillna(0, inplace=True)
 
-
+        # Price cleaning usung the Price class functionality
         print(f"[prepare] cleaning... (elapsed time: {self._format_time(time.time()-start)})")
         price_map = self.aggregate_price_map(price_aggregation_fn, verbose = 0)
         output.loc[output['price'].isna(), 'price'] = output.loc[output['price'].isna(), :].progress_apply(lambda row: price_map.loc[row['week']-1, str(int(row['product']))], axis=1)
 
+        # feature creation
         print(f"[prepare] feature creation... (elapsed time: {self._format_time(time.time()-start)})")
-        # last purchase
+        ## feature creation: purchase history features - using the Product History class
         output['weeks_since_last_purchase'] = output.progress_apply(lambda row: self.get_last_purchase(int(row['shopper']), str(int(row['product'])), row['week']), axis=1)
         output['weeks_since_last_purchase'] = output['week'] - output['weeks_since_last_purchase']
         output.loc[output['weeks_since_last_purchase'] == np.inf, 'weeks_since_last_purchase'] = np.ceil(output['week'].max() * 1.15)
-        # trends
         trend_windows = [1, 3, 5]
         for window in trend_windows:
             output['trend_'+str(window)] = output.progress_apply(lambda row: self.get_trend(int(row['shopper']), str(int(row['product'])), row['week'], window), axis=1)
         output['product_freq'] = output.progress_apply(lambda row: self.get_trend(int(row['shopper']), str(int(row['product'])), row['week'], row['week']), axis=1)
 
+        ## feature creation: user features, e.g. user-coupon redemption rate
+        
+        # benedikt
+        
+        
+        ## feature creation: product cluster features, e.g. discount in complement/substitute
+        
+        # sascha
+        
         print(f"[prepare] done (elapsed time: {self._format_time(time.time()-start)})")
+        self.data['prepare'] = output
         return output
         
         

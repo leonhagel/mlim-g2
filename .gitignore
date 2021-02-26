@@ -143,3 +143,4 @@ data/merged_left/purchase.parquet
 data/merged_left/merged.parquet
 data/merged_left/clean.parquet
 data/prepare.parquet
+code/prices_20210224_price-map.ipynb
