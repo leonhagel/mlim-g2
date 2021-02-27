@@ -742,16 +742,173 @@ class Product_Histories(Helper):
         )
 
 
-# Redem. rates
+class Redemptions(Helper):
+    
+    """    
+        input: 
+        week (touple, start, stop) 
+        shopper (touple, start, stop)
+        basket df variables: 'discount'(int/float), 'price'(int/float), 'product'(int), 'shopper'(int) (nan set to zero)
+        
+        output: basket df with 'product_redemption_likelihood', 'shopper_product_redemption_likelihood', 'discount_buy' added
+    
+    
+    
+    
+    class inheritance level: (inheritance levels: 0 -> 1 -> 2 -> 3)
+        - 1
+    goal:
+        - calculate costumer and product specific coupon redemption rates
+    functionality:
+        - take merged dataframe
+        - calculate product and shopper_product coupon redemption rates
+        - calculate products that have only been bought because of a discount    
+    """
+    
+    def __init__(self):
+        """
+        attributes: 
+            - ???
 
-# Elasticties
+        public methods:
+            - shopper_coupon_rates: resize input dataframe, calculate shopper_product_redemption_likelihood, discount_buy
 
+            - (helper: load, dump, reduce_data_size, get_merged_clean, get_mappings)
+        """    
+        super().__init__()
+        
+    def shopper_coupon_rates(self, basket, week, shopper):
+         """       
+        use:
+            - merged and cleaned datafrage
+            
+        requirements:
+            - dataframe defines as 'output'
+
+        input:
+            - product: int
+                - product id
+            - discount: float
+                - discount rate
+            - week: int
+                - start and stop week for calculation
+            - shopper: int
+                - shopper id
+            - price: float
+
+        return: pd.DataFrame
+            - features added
+        """
+        # data is shopper specific => use shoppers [0-1999] 
+        # 0.1 sec for 1 week & 2000 shoppers    
+        # data is very sparse if only one week is used 
+            
+        output = basket[(week[1] >= basket['week']) & (basket['week'] >= week[0])].copy()              # delete if specific weeks already as input
+        output = output[(shopper[1] >= output['shopper']) & (output['shopper'] >= shopper[0])]         # delete if only 2000 shoppers as input
+        coupons = output[output['discount'] > 0].copy()
+        coupons.loc[(coupons['price'].notnull()), 'redeemed']  = 1
+        coupons['redeemed'] = coupons['redeemed'].fillna(0)
+
+        # coupon redemption likelihood by costumer & product
+        costumer_redemption_rate = coupons.groupby(['shopper', 'product'])['redeemed'].mean()
+        output = output.merge(costumer_redemption_rate, how = 'left', on = ['shopper', 'product'])
+        output = output.rename(columns = {'redeemed' : 'shopper_product_redemption_likelihood'})
+
+
+        # only bought because of discount?
+        buy_all = output.groupby(['shopper', 'product']).size()
+        discount = coupons.groupby(['shopper', 'product']).size()
+        discount_buy = discount / buy_all
+        discount_buy = discount_buy.fillna(0)
+        discount_buy = discount_buy.rename('discount_buy')
+        output = output.merge(discount_buy, how = 'left', on = ['shopper', 'product'])
+
+        return output
+
+
+class Elasticities(Helper):
+    
+    """
+    class inheritance level: (inheritance levels: 0 -> 1 -> 2 -> 3)
+        - 1
+    goal:
+        - calculate week specific price elasticities
+    functionality:
+        - load and merge specified week from basket & coupons df
+        - calculate product specific price elasticities from normal price & 30% discounts
+    """
+    
+    def __init__(self):
+        """
+        attributes: 
+            - ???
+
+        public methods:
+            - calc_week_elastics: pull and merge dataframes, return price elasticities
+
+            - (helper: load, dump, reduce_data_size, get_merged_clean, get_mappings)
+        """    
+        super().__init__()
+        self.baskets = basket
+        self.coupons = coupons
+
+    
+    def calc_week_elasticity(self, week):  # runtime of 3.3 sec
+        """       
+        use:
+            - pull and merge dataframes, return price elasticities
+            
+        requirements:
+            - 'basket.parquet' and 'coupons.parquet' needs to be loaded to class ???
+
+        input:
+            - product: int
+                - product id
+            - discount: float
+                - discount rate
+            - week: int
+                - start and stop week for calculation
+            - shopper: int
+                - shopper id
+
+        return: pd.DataFrame: float
+            - price elasticity of each product
+        """
+        
+        basket_week = basket[(week[1] >= basket['week']) & (basket['week'] >= week[0])].copy()
+        coupons_week = coupons[(week[1] >= coupons['week']) & (coupons['week'] >= week[0])].copy()
+        basket_week = basket_week.merge(coupons_week, how = "outer")
+        
+        basket_week['discount'] = basket_week['discount'].fillna(0)
+        basket_week['price'] = basket_week['price'].fillna(0)
+
+        elast = []
+        total_basket_count = 100000 * (week[1] - week[0] + 1)
+
+        for i in range(250):
+            reg_price = basket_week[basket_week['product'] == i]
+            reg_price_buy = len(reg_price[reg_price['discount'] == 0])
+            all_discounts_offers = len(reg_price[reg_price['discount'] > 0])
+            reg_price_offer = total_basket_count - all_discounts_offers
+            reg_price_buy_rate = reg_price_buy / reg_price_offer
+            discount_30 = reg_price[reg_price['discount'] == 0.3]
+            discount_30_offer = len(discount_30)
+            discount_30_buy = (discount_30['price'] != 0).sum()
+            discount_buy_rate = discount_30_buy / discount_30_offer
+            elast.append((discount_buy_rate - reg_price_buy_rate) / (0.3 * reg_price_buy_rate))
+
+        elasticity_df = pd.DataFrame(elast)
+        elasticity_df['product'] = elasticity_df.index 
+        return elasticity_df
+    
+    
+    
 # Product clusters
 
 
 # class inheritance level: 2 - Predicting purchase probabilities
 # ==================================================================================
-class Purchase_Probabilities(Product_Histories, Prices):
+class Purchase_Probabilities(Product_Histories, Prices, Elasticities, Redemptions):
     """
     class inheritance level: (inheritance levels: 0 -> 1 -> 2 -> 3)
         2
@@ -804,6 +961,8 @@ class Purchase_Probabilities(Product_Histories, Prices):
             - (prices: get_price_map, aggregate_price_map)
             - (product_histories: get_history_map, get_history, get_last_purchase,
               get_trend)
+            - (Elasticities: calc_week_elasticity) 
+            - (Redemptions: shopper_coupon_rates)
             - (helper: load, dump, reduce_data_size, get_merged_clean, get_mappings)
         """
         super().__init__()
@@ -960,11 +1119,22 @@ class Purchase_Probabilities(Product_Histories, Prices):
             axis=1,
         )
 
-        # **************************************************************
-        # feature creation: user features, e.g. user-coupon redemption rate
-        # benedikt
-        # **************************************************************
+        # price elasticity
+        elasticity_df = Elasticities()
+        elasticity_df = elasticity_df.calc_week_elasticity(week)
+        output = output.mereg(elasticity_df, how = 'left')
+        
+        
+        # shopper coupon behaviour
+        redemption_rates = Redemptions()
+        output = redemption_rates.shopper_coupon_rates(output, week, shopper):
 
+        # producrt discount behaviour
+         
+        
+
+        
+        
         # **************************************************************
         # feature creation: product cluster features, e.g. discount in complement/substitute
         # sascha
