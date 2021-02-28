@@ -741,20 +741,9 @@ class Product_Histories(Helper):
             np.unique(history[history >= week - trend_window]).shape[0] / trend_window
         )
 
-
 class Redemptions(Helper):
     
     """    
-        input: 
-        week (touple, start, stop) 
-        shopper (touple, start, stop)
-        basket df variables: 'discount'(int/float), 'price'(int/float), 'product'(int), 'shopper'(int) (nan set to zero)
-        
-        output: basket df with 'product_redemption_likelihood', 'shopper_product_redemption_likelihood', 'discount_buy' added
-    
-    
-    
-    
     class inheritance level: (inheritance levels: 0 -> 1 -> 2 -> 3)
         - 1
     goal:
@@ -768,140 +757,177 @@ class Redemptions(Helper):
     def __init__(self):
         """
         attributes: 
-            - ???
+            - (helper-attributes: data, mappings)
 
         public methods:
-            - shopper_coupon_rates: resize input dataframe, calculate shopper_product_redemption_likelihood, discount_buy
+            - get_reduced_coupons: prepare coupons df
+            - product_redemption: calculate product_redemption_likelihood 
+            - costumer_redemption: calculate shopper_product_redemption_likelihood
+            - only_discount_buy: calculate costumer specific products that were only bought because of a discount
 
             - (helper: load, dump, reduce_data_size, get_merged_clean, get_mappings)
         """    
         super().__init__()
+        self.data['clean'] = output
+        self.data['reduced_coupons'] = None
         
-    def shopper_coupon_rates(self, basket, week, shopper):
-         """       
+        
+    def get_reduced_coupons(self, df='clean'):
+        """       
         use:
-            - merged and cleaned datafrage
+            - prepare coupons df for use in class
             
         requirements:
-            - dataframe defines as 'output'
+            - 'clean' df stored in class
 
         input:
-            - product: int
-                - product id
-            - discount: float
-                - discount rate
-            - week: int
-                - start and stop week for calculation
-            - shopper: int
-                - shopper id
-            - price: float
+            - 'clean': pd.DataFrame
+                - merged and cleaned dataframe
 
-        return: pd.DataFrame
-            - features added
+        return: 
+            - pd.DataFrame
+                - coupon data extracted
         """
-        # data is shopper specific => use shoppers [0-1999] 
-        # 0.1 sec for 1 week & 2000 shoppers    
-        # data is very sparse if only one week is used 
-            
-        output = basket[(week[1] >= basket['week']) & (basket['week'] >= week[0])].copy()              # delete if specific weeks already as input
-        output = output[(shopper[1] >= output['shopper']) & (output['shopper'] >= shopper[0])]         # delete if only 2000 shoppers as input
         coupons = output[output['discount'] > 0].copy()
-        coupons.loc[(coupons['price'].notnull()), 'redeemed']  = 1
+        coupons.loc[(coupons['price'].notnull()), 'redeemed'] = 1
         coupons['redeemed'] = coupons['redeemed'].fillna(0)
+        
+        return self.data['reduced_coupons']
+        
+        
+    def product_redemption(self, df='clean'):
+        """       
+        use:
+            - calculate product specific redemption rate from prepared dataframe
+            
+        requirements:
+            - 'clean' df stored in class
 
-        # coupon redemption likelihood by costumer & product
-        costumer_redemption_rate = coupons.groupby(['shopper', 'product'])['redeemed'].mean()
-        output = output.merge(costumer_redemption_rate, how = 'left', on = ['shopper', 'product'])
-        output = output.rename(columns = {'redeemed' : 'shopper_product_redemption_likelihood'})
+        input:
+            - 'clean': pd.DataFrame
+                - merged and cleaned dataframe
 
+        return: pd.GroupBy
+        """
+        redemption_rate = self.data['reduced_coupons'].groupby(['product'])['redeemed'].mean()#
+        
+        return redemption_rate
 
-        # only bought because of discount?
+    def costumer_redemption(self, df='clean'):
+        """       
+        use:
+            - calculate costumer specific redemption rate from prepared dataframe
+            
+        requirements:
+            - 'clean' df stored in class
+
+        input:
+            - 'clean': pd.DataFrame
+                - merged and cleaned dataframe
+
+        return: pd.GroupBy
+        """
+        costumer_redemption_rate = self.data['reduced_coupons'].groupby(['shopper', 'product'])['redeemed'].mean()
+
+        return costumer_redemption_rate 
+    
+    def only_discount_buy(self, df='clean'):
+        """       
+        use:
+            - calculate costumer specific products that were only bought because of a discount from prepared dataframe
+            
+        requirements:
+            - 'clean' df stored in class
+
+        input:
+            - 'clean': pd.DataFrame
+                - merged and cleaned dataframe
+
+        return: pd.GroupBy
+        """
         buy_all = output.groupby(['shopper', 'product']).size()
-        discount = coupons.groupby(['shopper', 'product']).size()
+        discount = self.data['reduced_coupons'].groupby(['shopper', 'product']).size()
         discount_buy = discount / buy_all
         discount_buy = discount_buy.fillna(0)
         discount_buy = discount_buy.rename('discount_buy')
-        output = output.merge(discount_buy, how = 'left', on = ['shopper', 'product'])
 
-        return output
-
-
-class Elasticities(Helper):
+        return discount_buy
     
-    """
-    class inheritance level: (inheritance levels: 0 -> 1 -> 2 -> 3)
-        - 1
-    goal:
-        - calculate week specific price elasticities
-    functionality:
-        - load and merge specified week from basket & coupons df
-        - calculate product specific price elasticities from normal price & 30% discounts
-    """
+    
+class Elasticities(Helper):
+        
+        """    
+        class inheritance level: (inheritance levels: 0 -> 1 -> 2 -> 3)
+            - 1
+        goal:
+            - calculate week specific price elasticities
+        functionality:
+            - load and merge last week of training window from baskets & coupons df
+            - calculate product specific price elasticities from normal price & 30% discounts
+        """
+    
     
     def __init__(self):
         """
         attributes: 
-            - ???
+            - get_elasticities
+            - (helper-attributes: data, mappings)
 
         public methods:
-            - calc_week_elastics: pull and merge dataframes, return price elasticities
+            - get_elasticities: pull and merge dataframes, return price elasticities
 
             - (helper: load, dump, reduce_data_size, get_merged_clean, get_mappings)
-        """    
+        """
         super().__init__()
-        self.baskets = basket
+        self.baskets = baskets
         self.coupons = coupons
 
-    
-    def calc_week_elasticity(self, week):  # runtime of 3.3 sec
-        """       
-        use:
-            - pull and merge dataframes, return price elasticities
-            
-        requirements:
-            - 'basket.parquet' and 'coupons.parquet' needs to be loaded to class ???
 
-        input:
-            - product: int
-                - product id
-            - discount: float
-                - discount rate
-            - week: int
-                - start and stop week for calculation
-            - shopper: int
-                - shopper id
+    def get_elasticities():
+         """       
+            use:
+                - calculate weekly price elasticities for whole dataset
 
-        return: pd.DataFrame: float
-            - price elasticity of each product
-        """
-        
-        basket_week = basket[(week[1] >= basket['week']) & (basket['week'] >= week[0])].copy()
-        coupons_week = coupons[(week[1] >= coupons['week']) & (coupons['week'] >= week[0])].copy()
-        basket_week = basket_week.merge(coupons_week, how = "outer")
-        
-        basket_week['discount'] = basket_week['discount'].fillna(0)
-        basket_week['price'] = basket_week['price'].fillna(0)
+            requirements: baskets.parquet, coupons.parquet stored on disc
 
-        elast = []
-        total_basket_count = 100000 * (week[1] - week[0] + 1)
+            input:
+                - baskets: pd.DataFrame
+                - coupons: pd.DataFrame
 
-        for i in range(250):
-            reg_price = basket_week[basket_week['product'] == i]
-            reg_price_buy = len(reg_price[reg_price['discount'] == 0])
-            all_discounts_offers = len(reg_price[reg_price['discount'] > 0])
-            reg_price_offer = total_basket_count - all_discounts_offers
-            reg_price_buy_rate = reg_price_buy / reg_price_offer
-            discount_30 = reg_price[reg_price['discount'] == 0.3]
-            discount_30_offer = len(discount_30)
-            discount_30_buy = (discount_30['price'] != 0).sum()
-            discount_buy_rate = discount_30_buy / discount_30_offer
-            elast.append((discount_buy_rate - reg_price_buy_rate) / (0.3 * reg_price_buy_rate))
+            return: pd.DataFrame
+                - elasticities df (week x product)
+            """
 
-        elasticity_df = pd.DataFrame(elast)
-        elasticity_df['product'] = elasticity_df.index 
-        return elasticity_df
-    
-    
+        start = time.time()
+        elasticities = []
+        total_basket_count = 100000
+
+        for i in baskets[baskets['week']].unique():
+
+            basket_week = baskets[baskets['week'] == i].copy()
+            coupons_week = coupons[coupons['week'] == i].copy()
+            basket_week = basket_week.merge(coupons_week, how = "outer")
+            basket_week['discount'] = basket_week['discount'].fillna(0)
+            basket_week['price'] = basket_week['price'].fillna(0)
+            elast = []
+
+            for i in range(250):
+                reg_price = basket_week[basket_week['product'] == i]
+                reg_price_buy = len(reg_price[reg_price['discount'] == 0])
+                all_discounts_offers = len(reg_price[reg_price['discount'] > 0])
+                reg_price_offer = total_basket_count - all_discounts_offers
+                reg_price_buy_rate = reg_price_buy / reg_price_offer
+                discount_30 = reg_price[reg_price['discount'] == 30]
+                discount_30_offer = len(discount_30)
+                discount_30_buy = (discount_30['price'] != 0).sum()
+                discount_buy_rate = discount_30_buy / discount_30_offer
+                elast.append((discount_buy_rate - reg_price_buy_rate) / (0.3 * reg_price_buy_rate))
+
+            elasticities.append(elast)
+
+        end = time.time()
+        print(end - start)
+        return pd.DataFrame(elasticities).T
     
 # Product clusters
 
@@ -1120,17 +1146,17 @@ class Purchase_Probabilities(Product_Histories, Prices, Elasticities, Redemption
         )
 
         # price elasticity
-        elasticity_df = Elasticities()
-        elasticity_df = elasticity_df.calc_week_elasticity(week)
-        output = output.mereg(elasticity_df, how = 'left')
-        
+        output = output.merge(self.get_elasticities(), how = 'left', on = ['week', 'product'])
         
         # shopper coupon behaviour
-        redemption_rates = Redemptions()
-        output = redemption_rates.shopper_coupon_rates(output, week, shopper):
+        self.data['reduced_coupons'] = self.get_reduced_coupons()
+        output = output.merge(self.product_redemption(), how = 'left')
+        output = output.rename(columns = {'redeemed' : 'product_redemption_likelihood'})
 
-        # producrt discount behaviour
-         
+        output = output.merge(self.costumer_redemption(), how = 'left')
+        output = output.rename(columns = {'redeemed' : 'shopper_product_redemption_likelihood'})
+        
+        output = output.merge(self.only_discount_buy(), how = 'left')
         
 
         
