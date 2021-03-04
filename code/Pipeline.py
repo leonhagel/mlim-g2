@@ -13,6 +13,7 @@ import lightgbm
 from copy import deepcopy
 from tqdm import tqdm
 from IPython.display import clear_output
+import Utils
 # https://github.com/microsoft/LightGBM/issues/1369
 
 """
@@ -49,36 +50,9 @@ class Helper:
                 name_with_extension = os.path.basename(path)
                 name = os.path.splitext(name_with_extension)[0]
                 data = pd.read_parquet(path)
-                dataframes[name] = self.reduce_data_size(data)
+                dataframes[name] = Utils.reduce_mem_usage(name_with_extension, data)
         self.data = dataframes
-    
 
-    # reduce data size
-    # ----------------------------------------------------------------------------------
-    def reduce_data_size(self, df):
-        """
-        reduces memory usage of dataframes by converting integers to the lowest
-        possible memory usage and float to float32
-        """
-        max_integer_values = {
-            127: "int8", 
-            32767: "int16", 
-            2147483647: "int32"
-        }
-        
-        for column, dtype in df.dtypes.items():
-            if np.issubdtype(dtype, np.integer):
-                # determine the minimum dtype
-                max_value = np.max([abs(df[column].min()), df[column].max()])
-                max_array = np.array(list(max_integer_values.keys()))
-                max_idx = max_array[max_array > max_value][0]
-                # convert integers
-                df[column] = df[column].astype(max_integer_values[max_idx])
-            # convert float
-            if np.issubdtype(dtype, np.floating):
-                df[column] = df[column].astype("float32")
-        return df
-    
 
     # store/export data to disk
     # ----------------------------------------------------------------------------------
