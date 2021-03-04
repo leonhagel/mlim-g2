@@ -53,6 +53,22 @@ class Helper:
                 dataframes[name] = Utils.reduce_mem_usage(name_with_extension, data)
         self.data = dataframes
 
+    
+    # read parquet files from disk and optimize memory consumption
+    # ----------------------------------------------------------------------------------      
+    def get_merged(self, drop_input: bool = False):
+        """
+        merges baskets and coupons
+        Args:
+            drop_input (bool) optionally drops baskets and coupons 
+        """
+        self.data["merged"] = self.data["baskets"].merge(self.data["coupons"], how="outer")
+        if drop_input:
+            self.data.pop("baskets")
+            self.data.pop("coupons")
+            
+        return self.data["merged"]
+    
 
     # store/export data to disk
     # ----------------------------------------------------------------------------------
@@ -129,40 +145,6 @@ class Helper:
 
     # generic data preparation
     # ----------------------------------------------------------------------------------
-    def get_merged(self, drop: bool = False):
-        """
-        use:
-            - merge the provided dataframes coupons.parquet, baskets.parquet
-
-        requirement:
-            - data needs to be loaded to the 'data' dictionary
-            - naming needs to be 'coupons', 'baskets'
-            - Hint: load data using .load(); use filenames coupons.parquet, baskets.parquet
-
-        input:
-            - drop=False:
-                - indicates whether input dataframes should be dropped, the merged data
-                  will be kept
-
-        return: pd.DataFrame
-            - merged dataframe
-        """
-        try:
-            self.data["merged"]
-        except KeyError:
-            similar = [
-                x
-                for x in self.data["coupons"].columns
-                if x in self.data["baskets"].columns
-            ]  # i.e. ['shopper', 'product', 'week']
-            self.data["merged"] = self.data["baskets"].merge(
-                self.data["coupons"], how="outer", left_on=similar, right_on=similar
-            )
-        if drop:
-            self.data.pop("baskets")
-            self.data.pop("coupons")
-        return self.data["merged"]
-
     def reduce_shopper(self, df, shopper_range: tuple = (0, 1999)):
         """
         use:
