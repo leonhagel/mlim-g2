@@ -36,8 +36,10 @@ class Helper:
     def __init__(self):
         """
         Attributes:
+            data: (dict) holds all dataframes
             mappings: (dict) todo: what kind of mappings?
         """
+        self.data = {}
         self.mappings = {}
 
         
@@ -53,23 +55,45 @@ class Helper:
                 dataframes[name] = Utils.reduce_mem_usage(name_with_extension, data)
         self.data = dataframes
 
-    
-    # read parquet files from disk and optimize memory consumption
+
+    # merge baskets and coupons
     # ----------------------------------------------------------------------------------      
-    def get_merged(self, drop_input: bool = False):
-        """
-        merges baskets and coupons
-        Args:
-            drop_input (bool) optionally drops baskets and coupons 
-        """
-        self.data["merged"] = self.data["baskets"].merge(self.data["coupons"], how="outer")
-        if drop_input:
-            self.data.pop("baskets")
-            self.data.pop("coupons")
-            
+    # we need to refactor this reading functionality and include it in Utils!
+    def get_merged(self, filename='merged.parquet.gzip'):
+        try:
+            print(f'Read {filename} into memory...')
+            self.data["merged"] = pd.read_parquet(f'../data/{filename}')
+        except IOError: 
+            print(f'{filename} was not found on disk. Merging baskets and coupons...')
+            self.data["merged"] = self.data["baskets"].merge(self.data["coupons"], how="outer")
+            self.data["merged"].to_parquet(filename, compression='gzip')
+            print(f'Wrote {filename} to disk.')
+        finally:
+            print('Success!')
         return self.data["merged"]
     
-
+    # clean
+    # ----------------------------------------------------------------------------------   
+    def clean(self):
+        """
+        shoppers: reduces to range 2000
+        discount: set missing values to 0
+        prices: calculate prices without discounts
+        purchased: create binary target (1 if it was included in baskets data)
+        """
+        max_shoppers = 2000
+        df = self.data["merged"].copy()
+        
+        df = df[df['shopper'] < max_shoppers]
+        df["discount"].fillna(0, inplace=True)
+        df["discount"] = df["discount"] / 100
+        df["price"] = df["price"] / (1 - df["discount"])
+        df["purchased"] = df["price"].notna().astype("int8")
+        
+        self.data["clean"] = df
+        return df   
+    
+    
     # store/export data to disk
     # ----------------------------------------------------------------------------------
     def dump(self, export_path: str, which: str = "all"):
@@ -143,67 +167,6 @@ class Helper:
         """
         self.mappings[name].to_parquet(f"{export_path}{name}.parquet")
 
-    # generic data preparation
-    # ----------------------------------------------------------------------------------
-    def reduce_shopper(self, df, shopper_range: tuple = (0, 1999)):
-        """
-        use:
-            - reduces the shoppers to the specified id range
-
-        input:
-            - df: pd.DataFrame
-                - dataframe for which the shoppers should be reduced
-            - shopper_range: tuple
-                - first and last id for the range of shoppers, which should be included
-                  in the resulting dataframe
-
-        return: pd.DataFrame
-            - input dataframe, reduced to only the shoppers specified in the shopper range
-
-        """
-
-        lower = df["shopper"] >= shopper_range[0]
-        upper = df["shopper"] <= shopper_range[1]
-        return df.loc[lower & upper]
-
-    def clean(self, df="merged", shopper_range: tuple = (0, 1999)):
-        """
-        use:
-            - performs generic data preparations
-
-        cleaning operations:
-            - shoppers: reduces to shopper range
-            - discount: missing discount values will be set to 0
-            - prices: calculate prices without discounts
-            - target - purchased: create binary target based on whether the data point
-              was included in the baskets data
-
-        input:
-            - df='merged': pd.DataFrame
-                - dataframe which should be cleaned
-                - default='merged': uses the merged data located at self.data['merged']
-            - shopper_range: tuple
-                - first and last id of a shopper range which should be included in the
-                  cleaned data
-                - default=(0,1999): reduces the shoppers to the range which is required
-                  for the final prediction
-
-        return: pd.DataFrame
-            - cleaned and reduced dataframe
-        """
-
-        if list(df) == list("merged"):
-            df = self.data["merged"].copy()
-        # reducing shoppers
-        df = self.reduce_shopper(df, shopper_range)
-        # cleaning
-        df["discount"].fillna(0, inplace=True)
-        df["discount"] = df["discount"] / 100
-        df["price"] = df["price"] / (1 - df["discount"])
-        # target
-        df["purchased"] = df["price"].notna().astype("int8")
-        self.data["clean"] = df
-        return df
 
     # mappings: initialize and create mappings
     # ----------------------------------------------------------------------------------
