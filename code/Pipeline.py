@@ -57,19 +57,32 @@ class Helper:
 
 
     # merge baskets and coupons
-    # ----------------------------------------------------------------------------------      
+    # ----------------------------------------------------------------------------------    
+    
+
     # we need to refactor this reading functionality and include it in Utils!
     def get_merged(self, filename='merged.parquet.gzip'):
+        
+        def merge():
+            return self.data["baskets"].merge(self.data["coupons"], how="outer")
+
+        self.data["merged"] = Utils.parquet_loader(
+            parquet_name = "merged", 
+            callback = merge
+        )
+        
+        """
         try:
             print(f'Read {filename} into memory...')
             self.data["merged"] = pd.read_parquet(f'../data/{filename}')
-        except IOError: 
+        except FileNotFoundError: 
             print(f'{filename} was not found on disk. Merging baskets and coupons...')
             self.data["merged"] = self.data["baskets"].merge(self.data["coupons"], how="outer")
             self.data["merged"].to_parquet(filename, compression='gzip')
             print(f'Wrote {filename} to disk.')
         finally:
             print('Success!')
+        """
         return self.data["merged"]
     
     # clean
