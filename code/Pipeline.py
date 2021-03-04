@@ -1,49 +1,57 @@
-# class inheritance level: 0 - helper
 # ==================================================================================
+#  IMPORTS 
+# ==================================================================================
+import os
+import time
+import itertools                           
+import numpy as np
+import pandas as pd
+import scipy.stats
+import category_encoders
+import sklearn
+import lightgbm
+from copy import deepcopy
+from tqdm import tqdm
+from IPython.display import clear_output
+# https://github.com/microsoft/LightGBM/issues/1369
+
+"""
+    Current Inheritance Model (needs refactoring):    
+    
+               <-- Prices             <-- 
+       Helper                              Purchase_Probabilities  <-- No_Cross_Effects
+               <-- Product_Histories  <-- 
+"""
+
+# ==================================================================================
+#  Helper Class
+# ==================================================================================
+# todo: rename to Utils and break inheritance
 class Helper:
     """
-    class inheritance level: (inheritance levels: 0 -> 1 -> 2 -> 3)
-        0
-
-    goal:
-        reuse code efficiently
-
-    functionality:
-        - load data/exports from disk (.load)
-        - store/export data to disk (.dump)
-        - generic data preparation (.get_merged, .clean)
-        - initialize and create mappings (.get_mappings)
-        - (convenience functions: dict-like behaviour, format time)
+    Expose utility methods
     """
 
     def __init__(self):
-
         """
-        attributes:
-            - data: dict
-                - contains the loaded data sets
-                - if data set has been loaded using the load method:
-                  key = filename (w/o filetype)
-            - mappings: dict
-                - contains mappings created using the get_mappings method
-
-        public methods:
-            - load: reads files from disk
-            - dump: stores objects to disk
-            - reduce_data_size: reduces memory usage of dataframes
-            - get_merged: merges the provided data
-            - reduce_shoppers: reduces the shoppers in a dataframe to a specified
-              shopper range
-            - clean: generic data preparation
-            - get_mappings: creates a data map according to the specified configuration
+        Attributes:
+            data: (dict) contains the loaded data sets
+            mappings: (dict) todo: what kind of mappings?
         """
-
         self.data = {}
         self.mappings = {}
 
-    # load data/exports from disk
+        
+    # read files (data/exports) from disk
     # ----------------------------------------------------------------------------------
     def load(self, files: dict):
+        for key, paths in files.items():
+            for path in paths:
+                name_and_extension = os.path.basename(path)
+                name = os.path.splitext(name_and_extension)[0]
+                self[key][name] = pd.read_parquet(path)
+    
+    def load_old(self, files: dict):
         """
         use:
             - load files from the files-dictionary and store at correct location
@@ -56,7 +64,7 @@ class Helper:
 
         return: None
         """
-
+        # ToDo: this does not work with relative paths like '/../data' because we split at dot
         for attr, files in files.items():
             if type(files) == list:
                 for file in files:
@@ -80,8 +88,6 @@ class Helper:
             - parquet: pd.DataFrame
         """
 
-        import pandas as pd
-
         file_type = filepath.split(".")[1]
 
         if file_type == "parquet":
@@ -89,6 +95,7 @@ class Helper:
 
         return output
 
+    
     # store/export data to disk
     # ----------------------------------------------------------------------------------
     def dump(self, export_path: str, which: str = "all"):
@@ -177,8 +184,6 @@ class Helper:
         return: pd.DataFrame
             - dataframe with lower memory usage
         """
-
-        import numpy as np
 
         max_integer_values = {127: "int8", 32767: "int16", 2147483647: "int32"}
         for column, dtype in df.dtypes.items():
@@ -339,8 +344,7 @@ class Helper:
         return: pd.DataFrame
             - empty dataframe map
         """
-        from copy import deepcopy
-        import pandas as pd
+
 
         if initial_array == None:
             initial_array = []
@@ -381,7 +385,6 @@ class Helper:
         return: pd.DataFrame
             - dataframe map
         """
-        from tqdm import tqdm
 
         tqdm.pandas()
 
@@ -427,12 +430,13 @@ class Helper:
         return "{:02.0f}".format(seconds // 60) + ":" + "{:02.0f}".format(seconds % 60)
 
 
-# class inheritance level: 1 - Data preparation
 # ==================================================================================
+#  Prices Class
+# ==================================================================================
+
 class Prices(Helper):
     """
-    class inheritance level: (inheritance levels: 0 -> 1 -> 2 -> 3)
-        1
+    inheritance: Helper <- Prices <- 
 
     goal:
         - cleaning the price feature by using an appropriate replacement approach for
@@ -482,7 +486,6 @@ class Prices(Helper):
               values: list of the product's prices in the respective week)
 
         """
-        import numpy as np
 
         # specifying the input data
         if type(df) == str:
@@ -522,11 +525,9 @@ class Prices(Helper):
         return: pd.DataFrame
             - aggregated price map containing product prices for each week
         """
-        from tqdm import tqdm
-        import pandas as pd
 
         if aggregation_function == "mode":
-            import scipy.stats
+
 
             aggregation_function = lambda array: scipy.stats.mode(array)[0][0]
 
@@ -545,9 +546,6 @@ class Prices(Helper):
 
 class Product_Histories(Helper):
     """
-    class inheritance level: (inheritance levels: 0 -> 1 -> 2 -> 3)
-        1
-
     goal:
         - creating purchase history features, e.g. for each shopper-product combination
 
@@ -604,8 +602,6 @@ class Product_Histories(Helper):
               (index: shopper, columns: products, values: list of weeks in which each
               shopper purchased the respective product
         """
-
-        import numpy as np
 
         # specifying the input data
 
@@ -664,8 +660,7 @@ class Product_Histories(Helper):
               weeks for the provided shopper-product combination and prior to the
               provided week
         """
-        import numpy as np
-
+        
         arr = np.array(self.mappings[mapping].loc[shopper, str(product)])
         return arr[arr < week]
 
@@ -734,7 +729,6 @@ class Product_Histories(Helper):
             - trend/purchase frequency for the provided trend window and
               shopper-product combination, prior to the provided week
         """
-        import numpy as np
 
         history = self.get_history(shopper, product, week, mapping=mapping)
         return (
@@ -749,13 +743,14 @@ class Product_Histories(Helper):
 # Product clusters
 
 
+# ==================================================================================
+#  Purchase_Probabilities
+# ==================================================================================
+
 # class inheritance level: 2 - Predicting purchase probabilities
 # ==================================================================================
 class Purchase_Probabilities(Product_Histories, Prices):
     """
-    class inheritance level: (inheritance levels: 0 -> 1 -> 2 -> 3)
-        2
-
     goal:
         - forecasting purchase probabilities
 
@@ -765,6 +760,7 @@ class Purchase_Probabilities(Product_Histories, Prices):
         - model training and evaluation
     """
 
+    
     def __init__(self):
         """
         attributes:
@@ -815,6 +811,7 @@ class Purchase_Probabilities(Product_Histories, Prices):
         self.model_type = None
         self.model = None
 
+        
     def prepare(
         self,
         df="clean",
@@ -864,11 +861,6 @@ class Purchase_Probabilities(Product_Histories, Prices):
         return: pd.DataFrame
             - prepared data to be used for the train test split
         """
-        import numpy as np
-        import pandas as pd
-        import itertools
-        import time
-        from tqdm import tqdm
 
         tqdm.pandas()
 
@@ -976,102 +968,92 @@ class Purchase_Probabilities(Product_Histories, Prices):
         self.data["prepare"] = output
         return output
 
+    
     def train_test_split(
         self,
         test_week: int,
         train_window: int,
         df="prepare",
-        features: list = "default",
     ):
         """
         use:
-            - further preparing the date to be used for model training and evaluation
+            - further preparing the data to be used for model training and evaluation
 
         functionality:
             - splits the data into train and test data according to the specified test
               week and train window
-            - WOE encoding for the shopper id and product id
+            - Weight of Evidence Encoding (WOE) for shoppers and products
             - separating target and features
 
         input:
-            - train_week: int
-                - test data: week for which the model should be tested
-            - train_window: int
-                - train data: number of week prior to the test week on which the model
-                  will be trained
+            - test_week: int, week for which the model should be tested (test data)
+            - train_window: int, number of weeks prior to the test week (train data)
             - df: pd.DataFrame or str
                 - input dataframe on which the split should be performed
                 - default='prepare': used the data prepared by self.prepare() stored at
                   self.data['prepare']
-            features: list
-                - list of feature names which should be included in the model
-                - default='default': drops redundant features, i.e. ['shopper', 'week',
-                  'product', 'product_history', 'last_purchase']
 
         return: pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame
             - X_train, y_train, X_test, y_test to be used for model training
         """
-        import category_encoders as ce
-        from IPython.display import clear_output
 
         self.test_week = test_week
         self.train_window = train_window
-        self.df = df
-        self.features = features
+        data = self.data[df] if (type(df) == str) else df
 
-        if type(df) == str:
-            df = self.data[df]
-
-        # train and test split
+        
+        # Split test_week and train_weeks
         # ------------------------------------------------------------------------------
         start = test_week - train_window
-        train = df.loc[(df["week"] >= start) & (df["week"] < test_week), :]
-        test = df.loc[(df["week"] == test_week), :]
+        train = data[(data["week"] >= start) & (data["week"] < test_week)]
+        test = data[data["week"] == test_week]
 
+        
         # WOE category encoding
         # ------------------------------------------------------------------------------
-        encoder = ce.WOEEncoder()
-        train.loc[:, "shopper_WOE"] = encoder.fit_transform(
+        encoder = category_encoders.WOEEncoder()
+        
+        train["shopper_WOE"] = encoder.fit_transform(
             train["shopper"].astype("category"), train["purchased"]
         )["shopper"].values
-        test.loc[:, "shopper_WOE"] = encoder.transform(
+        
+        test["shopper_WOE"] = encoder.transform(
             test["shopper"].astype("category")
         )["shopper"].values
+        
         encoder = ce.WOEEncoder()
-        train.loc[:, "product_WOE"] = encoder.fit_transform(
+        
+        train["product_WOE"] = encoder.fit_transform(
             train["product"].astype("category"), train["purchased"]
         )["product"].values
-        test.loc[:, "product_WOE"] = encoder.transform(
+        
+        test["product_WOE"] = encoder.transform(
             test["product"].astype("category")
         )["product"].values
+        
         clear_output()
 
-        # separating target and features
+        
+        # Split features X and target y
         # ------------------------------------------------------------------------------
-        features = (
-            [
-                col
-                for col in train.columns
-                if col
-                not in [
-                    "purchased",
-                    "shopper",
-                    "week",
-                    "product",
-                    "product_history",
-                    "last_purchase",
-                ]
-            ]
-            if features == "default"
-            else features
-        )
-        X_train = train.loc[:, features]
+        features_to_drop = [
+            "purchased",
+            "shopper",
+            "week",
+            "product",
+            "product_history",
+            "last_purchase",
+        ]
+        features = [col for col in train.columns if col not in features_to_drop]
+        
+        X_train = train[features]
         y_train = train["purchased"]
-        X_test = test.loc[:, features]
+        X_test = test[features]
         y_test = test["purchased"]
 
         return X_train, y_train, X_test, y_test
 
+    
     def fit(self, model_type: str, X_train, y_train, **kwargs):
         """
         use:
@@ -1099,6 +1081,7 @@ class Purchase_Probabilities(Product_Histories, Prices):
         self.model = eval(f"self._fit_{model_type}(X_train, y_train, **kwargs)")
         return self.model
 
+    
     def _fit_lgbm(self, X_train, y_train, **kwargs):
         """
         use:
@@ -1115,12 +1098,12 @@ class Purchase_Probabilities(Product_Histories, Prices):
         return: object
             - trained lgb-model object
         """
-        import lightgbm
 
         model = lightgbm.LGBMClassifier()
         model.fit(X_train, y_train, **kwargs)
         return model
 
+    
     def predict(self, model, X):
         """
         use:
@@ -1136,12 +1119,11 @@ class Purchase_Probabilities(Product_Histories, Prices):
         return: array-like
             - predicted purchase probabilities for the provided data
         """
-        import lightgbm
-
         if type(model) == lightgbm.sklearn.LGBMClassifier:
             y_hat = model.predict_proba(X)[:, 1]
         return y_hat
 
+    
     def score(self, y_true, y_hat, metric="log_loss"):
         """
         use:
@@ -1160,8 +1142,6 @@ class Purchase_Probabilities(Product_Histories, Prices):
             - model performance score
         """
         if metric == "log_loss":
-            import sklearn
-
             metric = sklearn.metrics.log_loss
 
         return metric(y_true, y_hat)
