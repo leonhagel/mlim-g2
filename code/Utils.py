@@ -43,9 +43,15 @@ def reduce_mem_usage(name, df):
 
 
 def parquet_loader(parquet_name, callback, path='../data/'):
+    '''
+    Read parquet from disk, if not found, create it and write it gzipped to disk
+    Args:
+        parquet_name (str): name of parquet file (without .parquet.gzip extension)
+        callback (function): callback function to create parquet file once
+        path (str): path for reading and writing files
+    '''
     name = f'{parquet_name}.parquet.gzip'
     dataframe = None
-    
     try:
         print(f'Read {name} from disk...')
         dataframe = pd.read_parquet(f'{path}{name}')
@@ -56,5 +62,5 @@ def parquet_loader(parquet_name, callback, path='../data/'):
         dataframe.to_parquet(f'{path}{name}', compression='gzip')
         print(f'Wrote {name} to {path}')
     finally:
-        print(f'Successfully loaded {name} into memory.')
+        print(f'Successfully read {name} into memory.')
     return dataframe
