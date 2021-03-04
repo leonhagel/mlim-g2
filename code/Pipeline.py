@@ -311,8 +311,6 @@ class Helper:
 
 class Prices(Helper):
     """
-    inheritance: Helper <- Prices <- 
-
     goal:
         - cleaning the price feature by using an appropriate replacement approach for
           missing values
@@ -339,7 +337,6 @@ class Prices(Helper):
     # pipeline: creating the price map
     # ----------------------------------------------------------------------------------
     def get_price_map(self, df="merged"):
-        # def pipeline_prices(self, df="merged"):
         """
         use:
             - creates the 'prices' map for cleaning the missing prices
@@ -349,7 +346,7 @@ class Prices(Helper):
 
         requirements:
             - df='merged': the merged data set needs to be located at self.data['merged']
-                - Hint: merged data set can be created using self.get_merged()
+
         input:
             - df: pd.DataFrame
                 - dataframe for which the price map should be created
@@ -419,6 +416,9 @@ class Prices(Helper):
         return price_map
 
 
+# ==================================================================================
+#  Product_Histories Class
+# ==================================================================================
 class Product_Histories(Helper):
     """
     goal:
@@ -489,7 +489,7 @@ class Product_Histories(Helper):
         # load df w/ product clusters
 
         # reduce to purchased items only
-        df = df.loc[df["purchased"] == 1, :]
+        df = df[df["purchased"] == 1]
 
         # selecting the configuration for the map
         map_config = {
@@ -499,9 +499,18 @@ class Product_Histories(Helper):
                 "column_name": "product",
                 "value_name": "week",
                 "initial_array": [-np.inf],
-            }  # ,
-            # 'cluster_histories': {'df': df, 'row_name': 'shopper', 'column_name': '##CLUSTER_FEATURE_NAME##', 'value_name': 'week', 'initial_array': [-np.inf]}
+            }
+        } 
+        '''
+        'cluster_histories': {
+            'df': df, 
+            'row_name': 'shopper', 
+            'column_name': 'CLUSTER_FEATURE_NAME', 
+            'value_name': 'week', 
+            'initial_array': [-np.inf]
         }
+        '''
+
         map_config = {mapping: map_config[mapping]}
         self.get_mappings(map_config)
         return self.mappings[mapping]
@@ -509,7 +518,11 @@ class Product_Histories(Helper):
     # aggregating the history map for feature creation
     # ----------------------------------------------------------------------------------
     def get_history(
-        self, shopper: int, product: int, week: int, mapping: str = "product_histories"
+        self, 
+        shopper: int, 
+        product: int, 
+        week: int, 
+        mapping: str = "product_histories"
     ):
         """
         use:
@@ -519,28 +532,26 @@ class Product_Histories(Helper):
             - 'product_histories': map needs to be stored at
               self.mappings['product_histories']
 
-        input:
-            - shopper: int
-                - shopper id
-            - product: int
-                - product id
-            - week: int
-                - point in time for which the history should be returned
-            - mapping: str
-                - name of the relevant map stored at self.mappings[mapping]
-                - default='product_histories': returns shopper-product histories
+        Args:
+            shopper: (int) shopper id
+            product: (int) product id
+            week: (int) point in time for which the history should be returned
+            mapping: (str) name of the relevant map stored at self.mappings[mapping]
 
         return: np.array
             - 'product_histories': array which contains all week numbers of purchase
-              weeks for the provided shopper-product combination and prior to the
-              provided week
+              weeks for the provided shopper-product combination (prior to the provided week)
         """
         
         arr = np.array(self.mappings[mapping].loc[shopper, str(product)])
         return arr[arr < week]
 
     def get_last_purchase(
-        self, shopper: int, product: int, week: int, mapping: str = "product_histories"
+        self, 
+        shopper: int, 
+        product: int, 
+        week: int, 
+        mapping: str = "product_histories"
     ):
         """
         use:
