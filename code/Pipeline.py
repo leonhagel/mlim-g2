@@ -35,67 +35,51 @@ class Helper:
     def __init__(self):
         """
         Attributes:
-            data: (dict) contains the loaded data sets
             mappings: (dict) todo: what kind of mappings?
         """
-        self.data = {}
         self.mappings = {}
 
         
-    # read files (data/exports) from disk
+    # read parquet files from disk and optimize memory consumption
     # ----------------------------------------------------------------------------------
     def load(self, files: dict):
+        dataframes = {}
         for key, paths in files.items():
             for path in paths:
-                name_and_extension = os.path.basename(path)
-                name = os.path.splitext(name_and_extension)[0]
-                self[key][name] = pd.read_parquet(path)
+                name_with_extension = os.path.basename(path)
+                name = os.path.splitext(name_with_extension)[0]
+                data = pd.read_parquet(path)
+                dataframes[name] = self.reduce_data_size(data)
+        self.data = dataframes
     
-    def load_old(self, files: dict):
+
+    # reduce data size
+    # ----------------------------------------------------------------------------------
+    def reduce_data_size(self, df):
         """
-        use:
-            - load files from the files-dictionary and store at correct location
-
-        inputs:
-            - files: dict
-                - key: str -> location/attribute where the data should be stored
-                  (e.g. data, mapping)
-                - value: list or str --> filepath or list of filepaths
-
-        return: None
+        reduces memory usage of dataframes by converting integers to the lowest
+        possible memory usage and float to float32
         """
-        # ToDo: this does not work with relative paths like '/../data' because we split at dot
-        for attr, files in files.items():
-            if type(files) == list:
-                for file in files:
-                    name = file.split(".")[0].split("/")[-1]
-                    self[attr][name] = self._load(file)
-            else:
-                self[attr] = self._load(files)
-
-    def _load(self, filepath: str):
-        """
-        use:
-            - actual reading operation
-
-        supported filetypes: -> expandable using further if-clauses
-            - parquet
-
-        input:
-            - filepath: str
-
-        return:
-            - parquet: pd.DataFrame
-        """
-
-        file_type = filepath.split(".")[1]
-
-        if file_type == "parquet":
-            output = pd.read_parquet(filepath)
-
-        return output
-
+        max_integer_values = {
+            127: "int8", 
+            32767: "int16", 
+            2147483647: "int32"
+        }
+        
+        for column, dtype in df.dtypes.items():
+            if np.issubdtype(dtype, np.integer):
+                # determine the minimum dtype
+                max_value = np.max([abs(df[column].min()), df[column].max()])
+                max_array = np.array(list(max_integer_values.keys()))
+                max_idx = max_array[max_array > max_value][0]
+                # convert integers
+                df[column] = df[column].astype(max_integer_values[max_idx])
+            # convert float
+            if np.issubdtype(dtype, np.floating):
+                df[column] = df[column].astype("float32")
+        return df
     
+
     # store/export data to disk
     # ----------------------------------------------------------------------------------
     def dump(self, export_path: str, which: str = "all"):
@@ -171,34 +155,6 @@ class Helper:
 
     # generic data preparation
     # ----------------------------------------------------------------------------------
-    def reduce_data_size(self, df):
-        """
-        use:
-            - reduces memory usage of dataframes by converting integers to the lowest
-              possible memory usage and float to float32
-
-        input:
-            - df: pd.DataFrame
-                - dataframe with high memory usage
-
-        return: pd.DataFrame
-            - dataframe with lower memory usage
-        """
-
-        max_integer_values = {127: "int8", 32767: "int16", 2147483647: "int32"}
-        for column, dtype in df.dtypes.items():
-            if np.issubdtype(dtype, np.integer):
-                # determining the minimum dtype
-                max_value = np.max([abs(df[column].min()), df[column].max()])
-                max_array = np.array(list(max_integer_values.keys()))
-                max_idx = max_array[max_array > max_value][0]
-                # converting integers
-                df[column] = df[column].astype(max_integer_values[max_idx])
-            # converting float
-            if np.issubdtype(dtype, np.floating):
-                df[column] = df[column].astype("float32")
-        return df
-
     def get_merged(self, drop: bool = False):
         """
         use:
