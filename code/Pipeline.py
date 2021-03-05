@@ -170,7 +170,7 @@ class Helper:
 
     # mappings: initialize and create mappings
     # ----------------------------------------------------------------------------------
-    def get_mappings(self, config: dict):
+    def save_mappings(self, config: dict):
         """
         use:
             - creates mappings based on the provided configuration by looping over the
@@ -295,7 +295,7 @@ class Prices(Helper):
             - aggregate_price_map: aggregates the list of prices to an appropriate
               replacement value for missing values
 
-            - (helper: load, dump, reduce_data_size, get_merged_clean, get_mappings)
+            - (helper: load, dump, reduce_data_size, get_merged_clean, save_mappings)
         """
         super().__init__()
 
@@ -338,7 +338,7 @@ class Prices(Helper):
                 "initial_array": [],
             }
         }
-        self.get_mappings(map_config)
+        self.save_mappings(map_config)
         return self.mappings["prices"]
 
     # aggregating the price map
@@ -362,8 +362,6 @@ class Prices(Helper):
         """
 
         if aggregation_function == "mode":
-
-
             aggregation_function = lambda array: scipy.stats.mode(array)[0][0]
 
         price_map = pd.DataFrame()
@@ -399,20 +397,19 @@ class Product_Histories(Helper):
             - (helper-attributes: data, mappings)
 
         public methods:
-            - get_history_map: creates a purchase history map
+            - get_purchase_history: creates a purchase history map
             - get_history: returns the purchase history for a given point in time
             - get_last_purchase: returns the last purchase for a given point in time
             - get_trend: returns the purchase trend for a given trend window and
               point in time
 
-            - (helper: load, dump, reduce_data_size, get_merged_clean, get_mappings)
+            - (helper: load, dump, reduce_data_size, get_merged_clean, save_mappings)
         """
         super().__init__()
 
     # creating purchase history maps
     # ----------------------------------------------------------------------------------
-    def get_history_map(self, mapping: str = "product_histories"):
-        #    def pipeline_histories(self, mapping: str = "product_histories"):
+    def get_purchase_history(self, mapping: str = "product_histories"):
         """
         use:
             - creates the 'purchase_histories' map to be able to create history-based
@@ -443,29 +440,24 @@ class Product_Histories(Helper):
 
         # specifying the input data
 
-        if mapping == "product_histories":
-            try:
-                df = self.data["clean"]
-            except KeyError:
-                df = self.clean()  # uses cleaned data only for shoppers 0 to 1999
-        # if mapping == 'cluster_histories'
-        # load df w/ product clusters
-
+        # df should be in args
+        df = self.data["clean"]
+        
         # reduce to purchased items only
         df = df[df["purchased"] == 1]
+        
+        purchase_history_config = {
+            "df": df,
+            "row_name": "shopper",
+            "column_name": "product",
+            "value_name": "week",
+            "initial_array": [-np.inf],
 
-        # selecting the configuration for the map
-        map_config = {
-            "product_histories": {
-                "df": df,
-                "row_name": "shopper",
-                "column_name": "product",
-                "value_name": "week",
-                "initial_array": [-np.inf],
-            }
         } 
+
         '''
-        'cluster_histories': {
+        if mapping == 'cluster_histories'
+        cluster_history_config = {
             'df': df, 
             'row_name': 'shopper', 
             'column_name': 'CLUSTER_FEATURE_NAME', 
@@ -474,8 +466,7 @@ class Product_Histories(Helper):
         }
         '''
 
-        map_config = {mapping: map_config[mapping]}
-        self.get_mappings(map_config)
+        self.save_mappings({'product_histories': purchase_history_config})
         return self.mappings[mapping]
 
     # aggregating the history map for feature creation
@@ -647,9 +638,9 @@ class Purchase_Probabilities(Product_Histories, Prices):
             - score: calculates a model performance score
 
             - (prices: get_price_map, aggregate_price_map)
-            - (product_histories: get_history_map, get_history, get_last_purchase,
+            - (product_histories: get_purchase_history, get_history, get_last_purchase,
               get_trend)
-            - (helper: load, dump, reduce_data_size, get_merged_clean, get_mappings)
+            - (helper: load, dump, reduce_data_size, get_merged_clean, save_mappings)
         """
         super().__init__()
         self.shoppers = None
@@ -753,15 +744,18 @@ class Purchase_Probabilities(Product_Histories, Prices):
 
         # treating missing price values - replacement
         # ------------------------------------------------------------------------------
-        print(
-            f"[prepare] cleaning... (elapsed time: {self._format_time(time.time() - start)})"
-        )
+        print(f"[prepare] cleaning... (elapsed time: {self._format_time(time.time() - start)})")
+        
         price_map = self.aggregate_price_map(price_aggregation_fn, verbose=0)
+  
         output.loc[output["price"].isna(), "price"] = output.loc[
             output["price"].isna(), :
         ].progress_apply(
-            lambda row: price_map.loc[row["week"] - 1, str(int(row["product"]))], axis=1
+            lambda row: price_map.loc[row["week"] - 1, row["product"]], axis=1
         )
+        
+        print('end')
+        return output
 
         # feature creation
         # ------------------------------------------------------------------------------
