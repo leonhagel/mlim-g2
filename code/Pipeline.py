@@ -14,6 +14,7 @@ from copy import deepcopy
 from tqdm import tqdm
 from IPython.display import clear_output
 import Utils
+tqdm.pandas()
 # https://github.com/microsoft/LightGBM/issues/1369
 
 """
@@ -71,18 +72,6 @@ class Helper:
             callback = merge
         )
         
-        """
-        try:
-            print(f'Read {filename} into memory...')
-            self.data["merged"] = pd.read_parquet(f'../data/{filename}')
-        except FileNotFoundError: 
-            print(f'{filename} was not found on disk. Merging baskets and coupons...')
-            self.data["merged"] = self.data["baskets"].merge(self.data["coupons"], how="outer")
-            self.data["merged"].to_parquet(filename, compression='gzip')
-            print(f'Wrote {filename} to disk.')
-        finally:
-            print('Success!')
-        """
         return self.data["merged"]
     
     # clean
@@ -215,7 +204,8 @@ class Helper:
         for name, cnfg in config.items():
             self.mappings[name] = self._get_mapping(**cnfg)
 
-    def _init_df_map(self, rows, columns, initial_array: list = None):
+            
+    def _init_df_map(self, n_rows, n_cols, initial_array: list = None):
         """
         use:
             - initialized empty map, using the specified row, columns and initial array
@@ -232,19 +222,21 @@ class Helper:
         return: pd.DataFrame
             - empty dataframe map
         """
-
-
         if initial_array == None:
             initial_array = []
-
-        # converting tuple to range
-        if type(rows) == tuple:
-            rows = range(rows[0], rows[1] + 1)
-        if type(columns) == tuple:
-            columns = range(columns[0], columns[1] + 1)
-
+       
+        rows = range(n_rows)
+        columns = range(n_cols)
         rows = {row: deepcopy(initial_array) for row in rows}
+        
         return pd.DataFrame({str(column): deepcopy(rows) for column in columns})
+        '''
+        Might need this later?
+        df = pd.DataFrame(index=range(n_rows), columns=range(n_cols))
+        for col in df.columns:
+            df[col] = df[col].apply(lambda x: initial_array)
+        
+        '''
 
     def _get_mapping(
         self,
@@ -273,24 +265,33 @@ class Helper:
         return: pd.DataFrame
             - dataframe map
         """
-
-        tqdm.pandas()
-
         if initial_array == None:
             initial_array = []
 
-        rows = (df[row_name].min(), df[row_name].max())
-        columns = (df[column_name].min(), df[column_name].max())
-        mapping = self._init_df_map(
-            rows=rows, columns=columns, initial_array=initial_array
-        )
+        n_rows = df[row_name].nunique()
+        n_cols = df[column_name].nunique()
+
+        mapping = self._init_df_map(n_rows, n_cols, initial_array)
+        print(mapping)
+        
+        append_to_map = lambda row: mapping.loc[
+            int(row[row_name]), str(int(row[column_name]))
+        ].append(row[value_name])
+
+        df.progress_apply(append_to_map, axis=1)
+
+        #remove ints?
+        '''
         df.progress_apply(
             lambda row: mapping.loc[
                 int(row[row_name]), str(int(row[column_name]))
             ].append(row[value_name]),
             axis=1,
         )
+        
+        '''
         return mapping
+
 
     # convenience functions
     # ----------------------------------------------------------------------------------
@@ -351,12 +352,14 @@ class Prices(Helper):
     # ----------------------------------------------------------------------------------
     def get_price_map(self, df="merged"):
         """
-        use:
-            - creates the 'prices' map for cleaning the missing prices
-            - stores the price map located at self.mappings['prices']
-            - idea: replace missing prices with mode/mean of the product's prices in
+        idea: replace missing prices with mode/mean of the product's prices in
               the current week to account for any price changes
-
+        creates the 'prices' map for cleaning the missing prices
+        price map is stored at self.mappings['prices']
+        rows = weeks
+        columns = products
+        values: list of the product's prices in the respective week
+        
         requirements:
             - df='merged': the merged data set needs to be located at self.data['merged']
 
@@ -371,12 +374,8 @@ class Prices(Helper):
               values: list of the product's prices in the respective week)
 
         """
-
-        # specifying the input data
-        if type(df) == str:
-            df = self.data[df].copy()
-
-        df = df.loc[df["price"].notna(), :]
+        df = self.data['clean'].copy()
+        df = df[df["price"].notna()]
 
         # specifying the configuration for the map
         map_config = {
@@ -760,8 +759,6 @@ class Purchase_Probabilities(Product_Histories, Prices):
         return: pd.DataFrame
             - prepared data to be used for the train test split
         """
-
-        tqdm.pandas()
 
         start = time.time()
         if type(df) == str:

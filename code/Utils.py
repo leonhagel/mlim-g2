@@ -1,6 +1,10 @@
 import numpy as np
 import pandas as pd
 
+
+# ==================================================================================
+#  Reduce Memory Usage
+# ==================================================================================
 def reduce_mem_usage(name, df):
     """     
         https://www.kaggle.com/gemartin/load-data-reduce-memory-usage
@@ -42,6 +46,9 @@ def reduce_mem_usage(name, df):
     return df
 
 
+# ==================================================================================
+#  Parquet Loader Utility 
+# ==================================================================================
 def parquet_loader(parquet_name, callback, path='../data/'):
     '''
     Read parquet from disk, if not found, create it and write it gzipped to disk
