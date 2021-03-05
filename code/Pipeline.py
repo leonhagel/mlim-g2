@@ -280,16 +280,6 @@ class Helper:
 
         df.progress_apply(append_to_map, axis=1)
 
-        #remove ints?
-        '''
-        df.progress_apply(
-            lambda row: mapping.loc[
-                int(row[row_name]), str(int(row[column_name]))
-            ].append(row[value_name]),
-            axis=1,
-        )
-        
-        '''
         return mapping
 
 
