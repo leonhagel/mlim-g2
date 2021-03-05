@@ -59,8 +59,6 @@ class Helper:
 
     # merge baskets and coupons
     # ----------------------------------------------------------------------------------    
-    
-
     # we need to refactor this reading functionality and include it in Utils!
     def get_merged(self, filename='merged.parquet.gzip'):
         
@@ -204,40 +202,9 @@ class Helper:
         for name, cnfg in config.items():
             self.mappings[name] = self._get_mapping(**cnfg)
 
-            
-    def _init_df_map(self, n_rows, n_cols, initial_array: list = None):
-        """
-        use:
-            - initialized empty map, using the specified row, columns and initial array
 
-        input:
-            - row: tuple or list
-                - list or range which will specify the INDEX of the map
-            - column: tuple or list
-                - list or range which will specify the COLUMNS of the map
-            - initial_array: list
-                - first elements of the list. Will be applied to all row-column
-                  combinations
-
-        return: pd.DataFrame
-            - empty dataframe map
-        """
-        if initial_array == None:
-            initial_array = []
-       
-        rows = range(n_rows)
-        columns = range(n_cols)
-        rows = {row: deepcopy(initial_array) for row in rows}
-        
-        return pd.DataFrame({str(column): deepcopy(rows) for column in columns})
-        '''
-        Might need this later?
-        df = pd.DataFrame(index=range(n_rows), columns=range(n_cols))
-        for col in df.columns:
-            df[col] = df[col].apply(lambda x: initial_array)
-        
-        '''
-
+    # get mapping
+    # ----------------------------------------------------------------------------------  
     def _get_mapping(
         self,
         df,
@@ -247,41 +214,35 @@ class Helper:
         initial_array: list = None,
     ):
         """
-        use:
-            - creates the the map by iterating over 'df'
-
-        input:
-             - 'df': dataframe for which the map should be created
-             - 'row_name': name of the column in 'df' which will be the index in the
-               resulting dataframe/map
-             - 'column_name': name of the column in 'df' which will be the column in
-               the resulting dataframe/map
-             - 'value_name': name of the column in 'df' which is the feature of interest.
-               While iterating over the data, the value will be appended to a list
-               stored in the dataframe/map, located at [row_name, column_name]
-             - 'initial_array': first elements in the value list
-                 - default=[]: no first values
-
-        return: pd.DataFrame
-            - dataframe map
+        create pivot table with array-like values
+        example: maps a specific product and customer to the matching weeks of purchase
+        products (rows) x shoppers (cols)  -> weeks (values saved in a list)
+        Args:
+            df: (pd.DataFrame) input data that shall be converted to a pivot table
+            row_name: (str) df[row_name] will be the rows in the pivot table
+            column_name: (str) df[column_name] will be the columns in the pivot table
+            value_name: (str) df[value_name] will be list-aggregated values in the pivot table
+            initial_array: (list) specify default values in an array 
         """
         if initial_array == None:
             initial_array = []
 
         n_rows = df[row_name].nunique()
         n_cols = df[column_name].nunique()
-
-        mapping = self._init_df_map(n_rows, n_cols, initial_array)
-        print(mapping)
         
-        append_to_map = lambda row: mapping.loc[
-            int(row[row_name]), str(int(row[column_name]))
-        ].append(row[value_name])
+        table = pd.DataFrame(itertools.product(list(range(n_rows)), list(range(n_cols))))
+        table.columns = [row_name, column_name]
+        
+        def aggregate(x):
+            return initial_array + list(x) if (initial_array) else list(x)
 
-        df.progress_apply(append_to_map, axis=1)
-
-        return mapping
-
+        history = df.groupby([row_name, column_name]).agg({value_name:aggregate}).reset_index()
+        merged = table.merge(history, how='left')
+        merged[value_name] = merged[value_name].apply(lambda d: d if isinstance(d, list) else initial_array)
+        pivot = merged.pivot_table(index=row_name, columns=column_name, values=value_name, aggfunc='first')
+        
+        return pivot
+    
 
     # convenience functions
     # ----------------------------------------------------------------------------------
