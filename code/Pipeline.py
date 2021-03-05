@@ -747,13 +747,21 @@ class Purchase_Probabilities(Product_Histories, Prices):
         print(f"[prepare] cleaning... (elapsed time: {self._format_time(time.time() - start)})")
         
         price_map = self.aggregate_price_map(price_aggregation_fn, verbose=0)
-  
+        
+        calc = lambda row: price_map.loc[row["week"] - 1, row["product"]]
+        
+        output['price'] = output.progress_apply(calc, axis=1)
+
+        #cleaned['price'] = cleaned.apply(lambda row: row['product'] * 2, axis=1)
+        
+        #df.assign('new_price'=lambda row: price_map.loc[row["week"] - 1, row["product"]]
+        '''
         output.loc[output["price"].isna(), "price"] = output.loc[
             output["price"].isna(), :
         ].progress_apply(
             lambda row: price_map.loc[row["week"] - 1, row["product"]], axis=1
         )
-        
+        '''
         print('end')
         return output
 
