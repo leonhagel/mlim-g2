@@ -508,24 +508,34 @@ class Purchase_Probabilities(Product_Histories):
         output['price'] = output['price'].fillna(output['mode_price'])
         output.drop('mode_price', axis=1, inplace=True)
         
-        print("replaced missing prices with mean")
+        print("replaced missing prices with mean")    
+    
+        # merge purchase week history to derive features
+        # week_hist: shopper, product, week_hist
+        # -> merge performed on product, shopper
+        # ------------------------------------------------------------------------------
+        output = output.merge(self.week_hist, how="left")
 
-        return output
     
         # feature: weeks since last purchase
         # ------------------------------------------------------------------------------
-        output["weeks_since_last_purchase"] = output.progress_apply(
-            lambda row: self.get_last_purchase(
-                row["shopper"], row["product"], row["week"]
-            ),
-            axis=1,
-        )
-        output["weeks_since_last_purchase"] = (
-            output["week"] - output["weeks_since_last_purchase"]
-        )
-        output.loc[
-            output["weeks_since_last_purchase"] == np.inf, "weeks_since_last_purchase"
-        ] = np.ceil(output["week"].max() * 1.15)
+        max_weeks = np.ceil(output["week"].max() * 1.15)
+
+        def get_weeks_since_last_purchase(row):
+            current_week = row['week']
+            week_hist = row['week_hist']
+
+            if not isinstance(week_hist, list): return max_weeks  
+            past_purchase_weeks = [i for i in week_hist if i < current_week]
+            if not past_purchase_weeks: return max_weeks
+            last_pruchase_week = past_purchase_weeks[-1]
+            weeks_since_last_purchase = current_week - last_pruchase_week
+            
+            return weeks_since_last_purchase
+        
+        output['weeks_since_last_purchase'] = output.apply(get_weeks_since_last_purchase, axis=1)
+        
+        return output
 
         print("added feature: weeks since last purchase")
     
