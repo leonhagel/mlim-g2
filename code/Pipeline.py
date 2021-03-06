@@ -91,7 +91,7 @@ class Helper:
         df["purchased"] = df["price"].notna().astype("int8")
         
         self.data["clean"] = df
-        return df   
+        return df
     
     
     # store/export data to disk
@@ -341,40 +341,21 @@ class Prices(Helper):
         self.save_mappings(map_config)
         return self.mappings["prices"]
 
-    # aggregating the price map
+
+    # get mode prices
     # ----------------------------------------------------------------------------------
-    def aggregate_price_map(self, aggregation_function="mode", verbose=1):
+    def get_mode_prices(self):
         """
-        use:
-            - aggregates the list of prices for each product-week combination using
-              the aggregation function
-
-        requirements:
-            - price map needs to be stored at self.mappings['prices']
-
-        input:
-            - aggregation_function: function(price_list)
-                - function which aggregates the price list
-                - default='mode': mode aggregation using scipy.stats.mode
-
-        return: pd.DataFrame
-            - aggregated price map containing product prices for each week
+        returns mode price for every product-week combination 
+        table columns: product, week, mode_price
         """
+        df = self.data['clean'].copy()
+        df = df[df["price"].notna()]
 
-        if aggregation_function == "mode":
-            aggregation_function = lambda array: scipy.stats.mode(array)[0][0]
+        get_mode = lambda x: pd.Series.mode(x)[0]
+        mode_prices = df.groupby(['product', 'week']).agg(mode_price=('price',get_mode)).reset_index()
 
-        price_map = pd.DataFrame()
-        for column in (
-            tqdm(self.mappings["prices"].columns)
-            if verbose >= 1
-            else self.mappings["prices"].columns
-        ):
-            price_map[column] = self.mappings["prices"][column].apply(
-                aggregation_function
-            )
-
-        return price_map
+        return mode_prices
 
 
 # ==================================================================================
@@ -654,11 +635,10 @@ class Purchase_Probabilities(Product_Histories, Prices):
         
     def prepare(
         self,
-        df="clean",
-        shopper: tuple = (0, 1999),
-        week: tuple = (1, 90),
-        product: tuple = (0, 249),
-        price_aggregation_fn="mode",
+        #df = "clean", how do we handle df arguments?
+        shopper = range(2000),
+        week = range(86,91),
+        product = range(250),
         trend_windows: list = [1, 3, 5],
     ):
         """
@@ -703,67 +683,40 @@ class Purchase_Probabilities(Product_Histories, Prices):
         """
 
         start = time.time()
-        if type(df) == str:
-            df = self.data[df]
+        df = self.data['clean']
 
         # adjusting the data structure according to the final output
         # ------------------------------------------------------------------------------
-
-        # converting tuples to ranges
-        if type(shopper) != list:
-            shopper = list(range(shopper[0], shopper[-1] + 1))
-        self.shoppers = shopper
-        if type(week) != list:
-            week = range(week[0], week[-1] + 1)
-        if type(product) != list:
-            product = range(product[0], product[-1] + 1)
-
-        # - creating the shopper, week, product combinations
-        print(
-            f"[prepare] itertools... (elapsed time: {self._format_time(time.time() - start)})"
-        )
         output = pd.DataFrame(itertools.product(shopper, week, product))
-        output.rename(columns={0: "shopper", 1: "week", 2: "product"}, inplace=True)
-
-        print(
-            f"[prepare] merge... (elapsed time: {self._format_time(time.time() - start)})"
-        )
-        if all([type(df) != pd.core.frame.DataFrame, df == None]):
-            output["price"] = None
-            output["discount"] = None
-            output["purchased"] = None
-        else:
-            output = output.merge(
-                df,
-                how="left",
-                left_on=list(output.columns),
-                right_on=list(output.columns),
-            )
-            output["purchased"].fillna(0, inplace=True)
-            output["discount"].fillna(0, inplace=True)
-
+        output.columns = ['shopper', 'week', 'product']        
+        output = output.merge(df, how="left")
+        output["purchased"].fillna(0, inplace=True)
+        output["discount"].fillna(0, inplace=True)
+        
+        
         # treating missing price values - replacement
         # ------------------------------------------------------------------------------
-        print(f"[prepare] cleaning... (elapsed time: {self._format_time(time.time() - start)})")
+        print(f"[prepare] compute missing prices... (elapsed time: {self._format_time(time.time() - start)})")
         
-        price_map = self.aggregate_price_map(price_aggregation_fn, verbose=0)
+        mode_prices = self.get_mode_prices()
         
-        calc = lambda row: price_map.loc[row["week"] - 1, row["product"]]
+        # replace missing prices with mode
+        output = output.merge(mode_prices, how='left', on=['week', 'product'])
+        output['price'] = output['price'].fillna(output['mode_price'])
+        output.drop('mode_price', axis=1, inplace=True)
         
-        output['price'] = output.progress_apply(calc, axis=1)
+        print('treated missing values')
+        return output, df, mode_prices
+        
+        '''
+            price_map = self.aggregate_price_map(verbose=0)
+            get_price = lambda row: price_map.loc[row["week"] - 1, row["product"]]
+            output['price'] = output.progress_apply(calc, axis=1)
+        '''
+        #####################
 
-        #cleaned['price'] = cleaned.apply(lambda row: row['product'] * 2, axis=1)
+        #####################
         
-        #df.assign('new_price'=lambda row: price_map.loc[row["week"] - 1, row["product"]]
-        '''
-        output.loc[output["price"].isna(), "price"] = output.loc[
-            output["price"].isna(), :
-        ].progress_apply(
-            lambda row: price_map.loc[row["week"] - 1, row["product"]], axis=1
-        )
-        '''
-        print('end')
-        return output
 
         # feature creation
         # ------------------------------------------------------------------------------
