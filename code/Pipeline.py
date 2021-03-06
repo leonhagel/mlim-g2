@@ -17,7 +17,7 @@ tqdm.pandas()
 """
     Current Inheritance Model (needs refactoring):    
     
-       Helper <-- Product_Histories <-- Purchase_Probabilities <-- No_Cross_Effects
+       Helper <-- Purchase_Probabilities <-- No_Cross_Effects
                
 """
 
@@ -90,142 +90,28 @@ class Helper:
         return df
 
 
-    # mappings: initialize and create mappings
-    # ----------------------------------------------------------------------------------
-    def save_mappings(self, config: dict):
-        """
-        use:
-            - creates mappings based on the provided configuration by looping over the
-              data and storing the current value to the correct location in the map
-            - stores the map to the 'mappings'-attribute
-
-        input:
-            - config: dict
-                - key: name of the mapping to be created
-                - values: kwargs:dict
-                     - 'df': dataframe for which the map should be created
-                     - 'row_name': name of the column in 'df' which will be the index
-                       in the resulting dataframe/map
-                     - 'column_name': name of the column in 'df' which will be the
-                       column in the resulting dataframe/map
-                     - 'value_name': name of the column in 'df' which is the feature of
-                       interest. While iterating over the data, the value will be
-                       appended to a list stored in the dataframe/map, located at
-                       [row_name, column_name]
-                     - 'initial_array': first elements in the value list
-                         - default=[]: no first values
-
-        return: pd.DataFrame
-            - index: unique values of the 'row_name' column in 'df'
-            - column: unique values of the 'column_name' column in 'df'
-            - values: list of values for each index-column combination, based on the
-              'value_name' column in 'df'
-        """
-        for name, cnfg in config.items():
-            self.mappings[name] = self._get_mapping(**cnfg)
-
 
     # get mapping
     # ----------------------------------------------------------------------------------  
-    def _get_mapping(
-        self,
-        df,
-        row_name,
-        column_name,
-        value_name,
-        initial_array: list = None,
-    ):
+    def get_week_hist(self):
         """
-        create pivot table with array-like values
-        example: maps a specific product and customer to the matching weeks of purchase
-        products (rows) x shoppers (cols)  -> weeks (values saved in a list)
-        Args:
-            df: (pd.DataFrame) input data that shall be converted to a pivot table
-            row_name: (str) df[row_name] will be the rows in the pivot table
-            column_name: (str) df[column_name] will be the columns in the pivot table
-            value_name: (str) df[value_name] will be list-aggregated values in the pivot table
-            initial_array: (list) specify default values in an array 
+        group data by product and shopper to get associated list of purchase weeks
         """
-        if initial_array == None:
-            initial_array = []
-
-        n_rows = df[row_name].nunique()
-        n_cols = df[column_name].nunique()
-        max_value_list = [-1]
+        df = self.data["clean"]
+        n_rows = df["shopper"].nunique()
+        n_cols = df["product"].nunique()
         
         table = pd.DataFrame(itertools.product(list(range(n_rows)), list(range(n_cols))))
-        table.columns = [row_name, column_name]
+        table.columns = ['shopper', "product"]
         
+        df = df[df["purchased"] == 1]
         hist = df.groupby(['product', 'shopper'])['week'].apply(list).reset_index(name='week_hist')
         week_hist = table.merge(hist, how='left')
         self.week_hist = week_hist
         
         return week_hist
-    
-        #def aggregate(x):
-            #return list(x)
-            #return max_value_list + list(x)
-        #product_purchase_week_history = df.groupby([row_name, column_name]).agg({'week':aggregate}).reset_index()
-        #merged[value_name] = merged[value_name].apply(lambda d: d if isinstance(d, list) else max_value_list)
-        #pivot = merged.pivot_table(index=row_name, columns=column_name, values=value_name, aggfunc='first')
 
-    
-    # get mode prices
-    # ----------------------------------------------------------------------------------
-    def get_mode_prices(self):
-        """
-        returns mode price for every product-week combination 
-        table columns: product, week, mode_price
-        """
-        df = self.data['clean'].copy()
-        df = df[df["price"].notna()]
-
-        get_mode = lambda x: pd.Series.mode(x)[0]
-        mode_prices = df.groupby(['product', 'week']).agg(mode_price=('price',get_mode)).reset_index()
-
-        return mode_prices
-
-
-# ==================================================================================
-#  Product_Histories Class
-# ==================================================================================
-class Product_Histories(Helper):
-    """
-    goal:
-        - creating purchase history features, e.g. for each shopper-product combination
-
-    functionality:
-        - creating a purchase history maps
-        - aggregating the purchase history to extract further history-based features,
-          e.g. purchase trends, time since last purchase, etc.
-    """
-
-    def __init__(self):
-        """
-        attributes:
-            - (helper-attributes: data, mappings)
-
-        public methods:
-            - get_purchase_history: creates a purchase history map
-            - get_history: returns the purchase history for a given point in time
-            - get_last_purchase: returns the last purchase for a given point in time
-            - get_trend: returns the purchase trend for a given trend window and
-              point in time
-
-            - (helper: load, dump, reduce_data_size, get_merged_clean, save_mappings)
-        """
-        super().__init__()
-
-    # creating purchase history maps
-    # ----------------------------------------------------------------------------------
-    def get_purchase_history(self, mapping: str = "product_histories"):
-        """
-        use:
-            - creates the 'purchase_histories' map to be able to create history-based
-              features
-            - stores the purchase history map located at
-              self.mappings['product_histories']
-
+        '''
             *** @SASCHA: ***************************************************************
             - Possible to extend the function to purchase histories of product clusters
             - input: mapping='cluster_histories'
@@ -233,38 +119,6 @@ class Product_Histories(Helper):
             - config: needs to be verified
             ****************************************************************************
 
-        requirements:
-            - data: requires either 'clean' or 'merged' data stored at self.data['clean']
-              or self.data['merged'] respectively
-
-        input:
-            - mapping: str
-                - name of the map to be created
-
-        return: pd.DataFrame
-            - 'product_histories' map to create further history-based features
-              (index: shopper, columns: products, values: list of weeks in which each
-              shopper purchased the respective product
-        """
-
-        # specifying the input data
-
-        # df should be in args
-        df = self.data["clean"]
-        
-        # reduce to purchased items only
-        df = df[df["purchased"] == 1]
-        
-        purchase_history_config = {
-            "df": df,
-            "row_name": "shopper",
-            "column_name": "product",
-            "value_name": "week",
-            "initial_array": [-np.inf],
-
-        } 
-
-        '''
         if mapping == 'cluster_histories'
         cluster_history_config = {
             'df': df, 
@@ -274,114 +128,18 @@ class Product_Histories(Helper):
             'initial_array': [-np.inf]
         }
         '''
-
-        self.save_mappings({'product_histories': purchase_history_config})
-        return self.mappings[mapping]
-
     
-    # get [weeks] of purchase for shopper and product
-    # ----------------------------------------------------------------------------------
-    def get_history(
-        self, 
-        shopper: int, 
-        product: int, 
-        week: int, 
-    ):
-        """
-        use:
-            - extracting the relevant purchase history given a shopper, product and week
+    # Redem. rates
 
-        requirements:
-            - 'product_histories': map needs to be stored at
-              self.mappings['product_histories']
+    # Elasticties
 
-        Args:
-            shopper: (int) shopper id
-            product: (int) product id
-            week: (int) point in time for which the history should be returned
-            mapping: (str) name of the relevant map stored at self.mappings[mapping]
-
-        return: np.array
-            - 'product_histories': array which contains all week numbers of purchase
-              weeks for the provided shopper-product combination (prior to the provided week)
-        """
-        arr = np.array(self.mappings['product_histories'].loc[shopper, product])
-        return arr[arr < week]
-
-    
-    # get week of last purchase for shopper, product, week combination
-    # ----------------------------------------------------------------------------------   
-    def get_last_purchase(
-        self, 
-        shopper: int, 
-        product: int, 
-        week: int, 
-    ):
-        """
-        get week for last purchase of (shopper, product, week) combination
-        uses self.mappings['product_histories']
-        """
-        return self.get_history(shopper, product, week)[-1]
-    
-    
-    # get trend
-    # ----------------------------------------------------------------------------------  
-    def get_trend(
-        self,
-        shopper: int,
-        product: int,
-        week: int,
-        trend_window: int,
-    ):
-        """
-        use:
-            - receiving a current purchase trend, i.e. purchase frequency over the
-              specified trend window, for the provided shopper-product combination
-              at the provided point in time
-
-        requirements:
-            - 'product_histories': map needs to be stored at
-              self.mappings['product_histories']
-
-        input:
-            - shopper: int
-                - shopper id
-            - product: int
-                - product id
-            - week: int
-                - point in time for which the last purchase should be returned
-                        - mapping: str
-            - trend_window: int
-                - number of weeks prior to 'week' on which the trend calculations
-            - mapping: str
-                - name of the relevant map stored at self.mappings[mapping]
-                - default='product_histories': returns shopper-product last purchases
-
-        return: int
-            - trend/purchase frequency for the provided trend window and
-              shopper-product combination, prior to the provided week
-        """
-
-        history = self.get_history(shopper, product, week)
-        return (
-            np.unique(history[history >= week - trend_window]).shape[0] / trend_window
-        )
-
-
-# Redem. rates
-
-# Elasticties
-
-# Product clusters
+    # Product clusters
 
 
 # ==================================================================================
-#  Purchase_Probabilities
+#  Purchase_Probabilities Class
 # ==================================================================================
-
-# class inheritance level: 2 - Predicting purchase probabilities
-# ==================================================================================
-class Purchase_Probabilities(Product_Histories):
+class Purchase_Probabilities(Helper):
     """
     goal:
         - forecasting purchase probabilities
@@ -441,56 +199,43 @@ class Purchase_Probabilities(Product_Histories):
         self.model_type = None
         self.model = None
 
+
+    # get mode prices
+    # ----------------------------------------------------------------------------------
+    def get_mode_prices(self):
+        """
+        returns mode price for every product-week combination 
+        table columns: product, week, mode_price
+        """
+        df = self.data['clean'].copy()
+        df = df[df["price"].notna()]
+
+        get_mode = lambda x: pd.Series.mode(x)[0]
         
+        mode_prices = df.groupby(['product', 'week']).agg(
+            mode_price=('price',get_mode)
+        ).reset_index()
+
+        return mode_prices
+    
+
     def prepare(
         self,
-        #df = "clean", how do we handle df arguments?
         shopper = range(2000),
         week = range(86,91),
         product = range(250),
         trend_windows: list = [1, 3, 5],
     ):
+        df = self.data['clean']
         """
-        use:
-            - preparing the data for the train test split
-
-        preparation operations:
+        preparing data for train test split
             - adjusting the data structure according to the final output
             - treating missing price values using replacement
-            - feature creation:
-                - weeks since last purchase
-                - purchase trends - based on the trend window
-                - product purchase frequency - based on all available data
-
-        requirements:
-            - 'product_histories' map needs to be stored at
-              self.mappings['product_histories']
-
-        input:
-            - df: pd.Dataframe or str
-                - input dataframe on which the preparation operations should be performed
-                - for str: input dataframe need to be stored at self.data[str]
-                - default='clean': use the cleaned data frame stored at self.data['clean']
-            - shopper: tuple or list
-                - shopper ids which should be included in the prepared dataframe
-                - for tuple: specified the first and last id in a shopper id range
-            - week: tuple or list
-                - week ids which should be included in the prepared dataframe
-                - for tuple: specified the first and last id in a week id range
-            - product: tuple or list
-                - product ids which should be included in the prepared dataframe
-                - for tuple: specified the first and last id in a product id range
-            - trend_windows: list
-                - list of trend window weeks for which a trend feature should be created
-
-        return: pd.DataFrame
-            - prepared data to be used for the train test split
+            - merge week_hist
+            - feature creation
         """
 
-        start = time.time()
-        df = self.data['clean']
 
-        
         # adjusting the data structure according to the final output
         # ------------------------------------------------------------------------------
         output = pd.DataFrame(itertools.product(shopper, week, product))
@@ -510,17 +255,20 @@ class Purchase_Probabilities(Product_Histories):
         
         print("replaced missing prices with mean")    
     
-        # merge purchase week history to derive features
-        # week_hist: shopper, product, week_hist
-        # -> merge performed on product, shopper
+    
+        # merge week_hist column to derive features, will be dropped later
+        # -> week_hist columns are: shopper, product, week_hist
+        # -> merge is performed on product, shopper
         # ------------------------------------------------------------------------------
         output = output.merge(self.week_hist, how="left")
 
     
         # feature: weeks since last purchase
         # ------------------------------------------------------------------------------
-        max_weeks = np.ceil(output["week"].max() * 1.15)
+        time_factor = 1.15
+        max_weeks = np.ceil(output["week"].max() * time_factor)
 
+        # this function can be improved / split
         def get_weeks_since_last_purchase(row):
             current_week = row['week']
             week_hist = row['week_hist']
@@ -533,47 +281,46 @@ class Purchase_Probabilities(Product_Histories):
             
             return weeks_since_last_purchase
         
-        output['weeks_since_last_purchase'] = output.apply(get_weeks_since_last_purchase, axis=1)
+        output['weeks_since_last_purchase'] = output.progress_apply(get_weeks_since_last_purchase, axis=1)
         
-        return output
-
-        print("added feature: weeks since last purchase")
+        print("added feature: weeks_since_last_purchase")
     
-        
+    
         # feature: purchase trend features
         # ------------------------------------------------------------------------------
+        def get_trend(row, window):
+            week = row['week']
+            week_hist = row['week_hist']
+            if not isinstance(week_hist, list): return 0  
+            purchases_in_window = [i for i in week_hist if week - window <= i < week]
+            trend = len(purchases_in_window) / window
+            return trend
+
         for window in trend_windows:
-            output["trend_" + str(window)] = output.progress_apply(
-                lambda row: self.get_trend(
-                    int(row["shopper"]), str(int(row["product"])), row["week"], window
-                ),
-                axis=1,
-            )
+            output["trend_" + str(window)] = output.progress_apply(get_trend, args=([window]), axis=1)
 
         print("added feature: purchase trend features")
-
         
-        # feature: product purchase frequency
+        #return output
+        
+        
+        # feature: product purchase frequency (set week as window)
         # ------------------------------------------------------------------------------
-        output["product_freq"] = output.progress_apply(
-            lambda row: self.get_trend(
-                int(row["shopper"]), str(int(row["product"])), row["week"], row["week"]
-            ),
-            axis=1,
-        )
+        output["product_freq"] = output.progress_apply(lambda row: get_trend(row, row['week']), axis=1)
         
-        print("added feature: product purchase frequency")
+        print("added feature: product_freq")
+        
+        
+        # @BENEDIKT
+        # feature: user features, e.g. user-coupon redemption rate
+        # ------------------------------------------------------------------------------
 
-        # **************************************************************
-        # feature creation: user features, e.g. user-coupon redemption rate
-        # benedikt
-        # **************************************************************
+        
+        # @SASCHA
+        # feature: product cluster, e.g. discount in complement/substitute
+        # ------------------------------------------------------------------------------
 
-        # **************************************************************
-        # feature creation: product cluster features, e.g. discount in complement/substitute
-        # sascha
-        # **************************************************************
-
+        
         print("prepare done")
         
         self.data["prepare"] = output
