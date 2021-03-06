@@ -259,22 +259,6 @@ class Helper:
     
     # convenience functions
     # ----------------------------------------------------------------------------------
-    def __getitem__(self, item):
-        """
-        use:
-            - dict-like behaviour: self['item'] <-> self.item
-            - allows to get attributes using a str
-        """
-        return eval(f"self.{item}")
-
-    def __setitem__(self, item, value):
-        """
-        use:
-            - dict-like behaviour: self['item'] = value <-> self.item = value
-            - allows to set attribute values using a str
-        """
-        exec(f"self.{item} = value")
-
     def _format_time(self, seconds):
         """
         use:
@@ -542,8 +526,6 @@ class Purchase_Probabilities(Product_Histories):
             - fit: trains the specified model
             - predict: predicts the specified model
             - score: calculates a model performance score
-
-            - (prices: get_price_map, aggregate_price_map)
             - (product_histories: get_purchase_history, get_history, get_last_purchase,
               get_trend)
             - (helper: load, dump, reduce_data_size, get_merged_clean, save_mappings)
