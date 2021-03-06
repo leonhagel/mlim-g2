@@ -1,16 +1,14 @@
 # ==================================================================================
-#  IMPORTS 
+#  Imports
 # ==================================================================================
 import os
 import time
 import itertools                           
 import numpy as np
 import pandas as pd
-import scipy.stats
 import category_encoders
 import sklearn
 import lightgbm
-from copy import deepcopy
 from tqdm import tqdm
 from IPython.display import clear_output
 import Utils
@@ -20,9 +18,8 @@ tqdm.pandas()
 """
     Current Inheritance Model (needs refactoring):    
     
-               <-- Prices             <-- 
-       Helper                              Purchase_Probabilities  <-- No_Cross_Effects
-               <-- Product_Histories  <-- 
+       Helper <-- Product_Histories <-- Purchase_Probabilities <-- No_Cross_Effects
+               
 """
 
 # ==================================================================================
@@ -243,7 +240,23 @@ class Helper:
         
         return pivot
     
+    
+    # get mode prices
+    # ----------------------------------------------------------------------------------
+    def get_mode_prices(self):
+        """
+        returns mode price for every product-week combination 
+        table columns: product, week, mode_price
+        """
+        df = self.data['clean'].copy()
+        df = df[df["price"].notna()]
 
+        get_mode = lambda x: pd.Series.mode(x)[0]
+        mode_prices = df.groupby(['product', 'week']).agg(mode_price=('price',get_mode)).reset_index()
+
+        return mode_prices
+
+    
     # convenience functions
     # ----------------------------------------------------------------------------------
     def __getitem__(self, item):
@@ -268,94 +281,6 @@ class Helper:
             - formats seconds into str time-format: 'mm:ss'
         """
         return "{:02.0f}".format(seconds // 60) + ":" + "{:02.0f}".format(seconds % 60)
-
-
-# ==================================================================================
-#  Prices Class
-# ==================================================================================
-
-class Prices(Helper):
-    """
-    goal:
-        - cleaning the price feature by using an appropriate replacement approach for
-          missing values
-
-    functionality:
-        - creating a price map which contains all prices of each product for each week
-        - aggregate the list of prices to an appropriate single price
-    """
-
-    def __init__(self):
-        """
-        attributes:
-            - (helper-attributes: data, mappings)
-
-        public methods:
-            - get_price_map: creates a price map for cleaning the price feature
-            - aggregate_price_map: aggregates the list of prices to an appropriate
-              replacement value for missing values
-
-            - (helper: load, dump, reduce_data_size, get_merged_clean, save_mappings)
-        """
-        super().__init__()
-
-    # pipeline: creating the price map
-    # ----------------------------------------------------------------------------------
-    def get_price_map(self, df="merged"):
-        """
-        idea: replace missing prices with mode/mean of the product's prices in
-              the current week to account for any price changes
-        creates the 'prices' map for cleaning the missing prices
-        price map is stored at self.mappings['prices']
-        rows = weeks
-        columns = products
-        values: list of the product's prices in the respective week
-        
-        requirements:
-            - df='merged': the merged data set needs to be located at self.data['merged']
-
-        input:
-            - df: pd.DataFrame
-                - dataframe for which the price map should be created
-                - default='merged': will take the 'merged' data to use full data w/o any
-                  shopper reductions
-
-        return: pd.DataFrame
-            - 'prices' map for cleaning the prices (index: weeks, columns: products,
-              values: list of the product's prices in the respective week)
-
-        """
-        df = self.data['clean'].copy()
-        df = df[df["price"].notna()]
-
-        # specifying the configuration for the map
-        map_config = {
-            "prices": {
-                "df": df,
-                "row_name": "week",
-                "column_name": "product",
-                "value_name": "price",
-                "initial_array": [],
-            }
-        }
-        self.save_mappings(map_config)
-        return self.mappings["prices"]
-
-
-    # get mode prices
-    # ----------------------------------------------------------------------------------
-    def get_mode_prices(self):
-        """
-        returns mode price for every product-week combination 
-        table columns: product, week, mode_price
-        """
-        df = self.data['clean'].copy()
-        df = df[df["price"].notna()]
-
-        get_mode = lambda x: pd.Series.mode(x)[0]
-        mode_prices = df.groupby(['product', 'week']).agg(mode_price=('price',get_mode)).reset_index()
-
-        return mode_prices
 
 
 # ==================================================================================
@@ -570,7 +495,7 @@ class Product_Histories(Helper):
 
 # class inheritance level: 2 - Predicting purchase probabilities
 # ==================================================================================
-class Purchase_Probabilities(Product_Histories, Prices):
+class Purchase_Probabilities(Product_Histories):
     """
     goal:
         - forecasting purchase probabilities
@@ -654,7 +579,6 @@ class Purchase_Probabilities(Product_Histories, Prices):
                 - product purchase frequency - based on all available data
 
         requirements:
-            - 'prices' map needs to be stored at self.mappings['prices']
             - 'product_histories' map needs to be stored at
               self.mappings['product_histories']
 
@@ -672,9 +596,6 @@ class Purchase_Probabilities(Product_Histories, Prices):
             - product: tuple or list
                 - product ids which should be included in the prepared dataframe
                 - for tuple: specified the first and last id in a product id range
-            - price_aggregation_fn: function(list)
-                - function used to aggregate the list of prices in the 'prices' map
-                - default='mode': mode aggregation using scipy.stats.mode
             - trend_windows: list
                 - list of trend window weeks for which a trend feature should be created
 
@@ -685,6 +606,7 @@ class Purchase_Probabilities(Product_Histories, Prices):
         start = time.time()
         df = self.data['clean']
 
+        
         # adjusting the data structure according to the final output
         # ------------------------------------------------------------------------------
         output = pd.DataFrame(itertools.product(shopper, week, product))
@@ -694,30 +616,16 @@ class Purchase_Probabilities(Product_Histories, Prices):
         output["discount"].fillna(0, inplace=True)
         
         
-        # treating missing price values - replacement
-        # ------------------------------------------------------------------------------
-        print(f"[prepare] compute missing prices... (elapsed time: {self._format_time(time.time() - start)})")
-        
+        # replace missing prices with mode price in associated week
+        # ------------------------------------------------------------------------------        
         mode_prices = self.get_mode_prices()
         
-        # replace missing prices with mode
         output = output.merge(mode_prices, how='left', on=['week', 'product'])
         output['price'] = output['price'].fillna(output['mode_price'])
         output.drop('mode_price', axis=1, inplace=True)
         
-        print('treated missing values')
-        return output, df, mode_prices
-        
-        '''
-            price_map = self.aggregate_price_map(verbose=0)
-            get_price = lambda row: price_map.loc[row["week"] - 1, row["product"]]
-            output['price'] = output.progress_apply(calc, axis=1)
-        '''
-        #####################
-
-        #####################
-        
-
+        print('ready!')
+        return output
         # feature creation
         # ------------------------------------------------------------------------------
         print(
