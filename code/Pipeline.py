@@ -274,14 +274,14 @@ class Product_Histories(Helper):
         self.save_mappings({'product_histories': purchase_history_config})
         return self.mappings[mapping]
 
-    # aggregating the history map for feature creation
+    
+    # get [weeks] of purchase for shopper and product
     # ----------------------------------------------------------------------------------
     def get_history(
         self, 
         shopper: int, 
         product: int, 
         week: int, 
-        mapping: str = "product_histories"
     ):
         """
         use:
@@ -301,50 +301,33 @@ class Product_Histories(Helper):
             - 'product_histories': array which contains all week numbers of purchase
               weeks for the provided shopper-product combination (prior to the provided week)
         """
-        
-        arr = np.array(self.mappings[mapping].loc[shopper, str(product)])
+        arr = np.array(self.mappings['product_histories'].loc[shopper, product])
         return arr[arr < week]
 
+    
+    # get week of last purchase for shopper, product, week combination
+    # ----------------------------------------------------------------------------------   
     def get_last_purchase(
         self, 
         shopper: int, 
         product: int, 
         week: int, 
-        mapping: str = "product_histories"
     ):
         """
-        use:
-            - receiving the last purchases week for the provided shopper-product
-              combination at the provided point in time
-
-        requirements:
-            - 'product_histories': map needs to be stored at
-              self.mappings['product_histories']
-
-        input:
-            - shopper: int
-                - shopper id
-            - product: int
-                - product id
-            - week: int
-                - point in time for which the last purchase should be returned
-            - mapping: str
-                - name of the relevant map stored at self.mappings[mapping]
-                - default='product_histories': returns shopper-product last purchases
-
-        return: int
-            - week of last purchase for the provided shopper-product combination and
-              prior to the provided week
+        get week for last purchase of (shopper, product, week) combination
+        uses self.mappings['product_histories']
         """
-        return self.get_history(shopper, product, week, mapping=mapping)[-1]
-
+        return self.get_history(shopper, product, week)[-1]
+    
+    
+    # get trend
+    # ----------------------------------------------------------------------------------  
     def get_trend(
         self,
         shopper: int,
         product: int,
         week: int,
         trend_window: int,
-        mapping: str = "product_histories",
     ):
         """
         use:
@@ -375,7 +358,7 @@ class Product_Histories(Helper):
               shopper-product combination, prior to the provided week
         """
 
-        history = self.get_history(shopper, product, week, mapping=mapping)
+        history = self.get_history(shopper, product, week)
         return (
             np.unique(history[history >= week - trend_window]).shape[0] / trend_window
         )
@@ -521,18 +504,14 @@ class Purchase_Probabilities(Product_Histories):
         output['price'] = output['price'].fillna(output['mode_price'])
         output.drop('mode_price', axis=1, inplace=True)
         
-        print('ready!')
-        return output
-    
+        print("replaced missing prices with mean")
 
-        # feature creation
+        
+        # feature: weeks since last purchase
         # ------------------------------------------------------------------------------
-        print("prepare feature creation...")
-
-        # weeks since last purchase
         output["weeks_since_last_purchase"] = output.progress_apply(
             lambda row: self.get_last_purchase(
-                int(row["shopper"]), str(int(row["product"])), row["week"]
+                row["shopper"], row["product"], row["week"]
             ),
             axis=1,
         )
@@ -543,7 +522,12 @@ class Purchase_Probabilities(Product_Histories):
             output["weeks_since_last_purchase"] == np.inf, "weeks_since_last_purchase"
         ] = np.ceil(output["week"].max() * 1.15)
 
-        # purchase trend features
+        print("added feature: weeks since last purchase")
+        
+        return output
+        
+        # feature: purchase trend features
+        # ------------------------------------------------------------------------------
         for window in trend_windows:
             output["trend_" + str(window)] = output.progress_apply(
                 lambda row: self.get_trend(
@@ -551,13 +535,20 @@ class Purchase_Probabilities(Product_Histories):
                 ),
                 axis=1,
             )
-        # product purchase frequency
+
+        print("added feature: purchase trend features")
+
+        
+        # feature: product purchase frequency
+        # ------------------------------------------------------------------------------
         output["product_freq"] = output.progress_apply(
             lambda row: self.get_trend(
                 int(row["shopper"]), str(int(row["product"])), row["week"], row["week"]
             ),
             axis=1,
         )
+        
+        print("added feature: product purchase frequency")
 
         # **************************************************************
         # feature creation: user features, e.g. user-coupon redemption rate
