@@ -151,20 +151,24 @@ class Helper:
 
         n_rows = df[row_name].nunique()
         n_cols = df[column_name].nunique()
+        max_value_list = [-1]
         
         table = pd.DataFrame(itertools.product(list(range(n_rows)), list(range(n_cols))))
         table.columns = [row_name, column_name]
         
-        def aggregate(x):
-            return initial_array + list(x) if (initial_array) else list(x)
-
-        history = df.groupby([row_name, column_name]).agg({value_name:aggregate}).reset_index()
-        merged = table.merge(history, how='left')
-        merged[value_name] = merged[value_name].apply(lambda d: d if isinstance(d, list) else initial_array)
-        pivot = merged.pivot_table(index=row_name, columns=column_name, values=value_name, aggfunc='first')
+        hist = df.groupby(['product', 'shopper'])['week'].apply(list).reset_index(name='week_hist')
+        week_hist = table.merge(hist, how='left')
+        self.week_hist = week_hist
         
-        return pivot
+        return week_hist
     
+        #def aggregate(x):
+            #return list(x)
+            #return max_value_list + list(x)
+        #product_purchase_week_history = df.groupby([row_name, column_name]).agg({'week':aggregate}).reset_index()
+        #merged[value_name] = merged[value_name].apply(lambda d: d if isinstance(d, list) else max_value_list)
+        #pivot = merged.pivot_table(index=row_name, columns=column_name, values=value_name, aggfunc='first')
+
     
     # get mode prices
     # ----------------------------------------------------------------------------------
@@ -506,7 +510,8 @@ class Purchase_Probabilities(Product_Histories):
         
         print("replaced missing prices with mean")
 
-        
+        return output
+    
         # feature: weeks since last purchase
         # ------------------------------------------------------------------------------
         output["weeks_since_last_purchase"] = output.progress_apply(
@@ -523,8 +528,7 @@ class Purchase_Probabilities(Product_Histories):
         ] = np.ceil(output["week"].max() * 1.15)
 
         print("added feature: weeks since last purchase")
-        
-        return output
+    
         
         # feature: purchase trend features
         # ------------------------------------------------------------------------------
