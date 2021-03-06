@@ -8,12 +8,11 @@ import numpy as np
 import pandas as pd
 import category_encoders
 import sklearn
-import lightgbm
+import lightgbm # https://github.com/microsoft/LightGBM/issues/1369
 from tqdm import tqdm
 from IPython.display import clear_output
 import Utils
 tqdm.pandas()
-# https://github.com/microsoft/LightGBM/issues/1369
 
 """
     Current Inheritance Model (needs refactoring):    
@@ -89,80 +88,6 @@ class Helper:
         
         self.data["clean"] = df
         return df
-    
-    
-    # store/export data to disk
-    # ----------------------------------------------------------------------------------
-    def dump(self, export_path: str, which: str = "all"):
-        """
-        use:
-            - stores the specified object/data to the disk
-
-        input:
-            - export_path: str
-                - path to the directory, where the objects should be stored
-            - which: str
-                - specifies which objects should be stored to disk
-                - supported arguments:
-                    - 'data': stores each object in the data dictionary
-                    - 'mappings': stores each object in the mappings dictionary
-                    - 'all': stores all supported object
-
-        return: None
-        """
-        if which == "all":
-            # data
-            provided_data = ["baskets", "coupon_index", "coupons"]
-            data = [data for data in self.data.keys() if data not in provided_data]
-            # mappings
-            mappings = list(self.mappings.keys())
-            # other attributes and objects
-            which = data + mappings
-        elif which == "data":
-            provided_data = ["baskets", "coupon_index", "coupons"]
-            which = [data for data in self.data.keys() if data not in provided_data]
-        elif which == "mappings":
-            which = list(self.mappings.keys())
-        else:
-            raise ValueError(
-                "'which'-argument not supported! Supported arguments: 'all', 'data', mappings"
-            )
-
-        for name in which:
-            if name in self.data.keys():
-                self._dump_data(export_path, name)
-            if name in self.mappings.keys():
-                self._dump_map(export_path, name)
-
-    def _dump_data(self, export_path: str, name: str):
-        """
-        use:
-            - stores 'data' objects to the export path
-
-        input:
-            - export_path: str
-                - export path provided by the .load method
-            - name: str
-                - filename for the object to be stored
-
-        return: None
-        """
-        self.data[name].to_parquet(f"{export_path}{name}.parquet")
-
-    def _dump_map(self, export_path: str, name: str):
-        """
-        use:
-            - stores 'mappings' objects to the export path
-
-        input:
-            - export_path: str
-                - export path provided by the .load method
-            - name: str
-                - filename for the object to be stored
-
-        return: None
-        """
-        self.mappings[name].to_parquet(f"{export_path}{name}.parquet")
 
 
     # mappings: initialize and create mappings
@@ -255,16 +180,6 @@ class Helper:
         mode_prices = df.groupby(['product', 'week']).agg(mode_price=('price',get_mode)).reset_index()
 
         return mode_prices
-
-    
-    # convenience functions
-    # ----------------------------------------------------------------------------------
-    def _format_time(self, seconds):
-        """
-        use:
-            - formats seconds into str time-format: 'mm:ss'
-        """
-        return "{:02.0f}".format(seconds // 60) + ":" + "{:02.0f}".format(seconds % 60)
 
 
 # ==================================================================================
@@ -608,11 +523,11 @@ class Purchase_Probabilities(Product_Histories):
         
         print('ready!')
         return output
+    
+
         # feature creation
         # ------------------------------------------------------------------------------
-        print(
-            f"[prepare] feature creation... (elapsed time: {self._format_time(time.time() - start)})"
-        )
+        print("prepare feature creation...")
 
         # weeks since last purchase
         output["weeks_since_last_purchase"] = output.progress_apply(
@@ -654,9 +569,8 @@ class Purchase_Probabilities(Product_Histories):
         # sascha
         # **************************************************************
 
-        print(
-            f"[prepare] done (elapsed time: {self._format_time(time.time() - start)})"
-        )
+        print("prepare done")
+        
         self.data["prepare"] = output
         return output
 
