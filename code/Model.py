@@ -14,25 +14,13 @@ class Model:
     def train_test_split(self):
         
         """
-        use:
-            - further preparing the data to be used for model training and evaluation
-
-        functionality:
-            - splits the data into train and test data according to the specified test
-              week and train window
-            - Weight of Evidence Encoding (WOE) for shoppers and products
-            - separating target and features
-
-        input:
-            - test_week: int, week for which the model should be tested (test data)
-            - train_window: int, number of weeks prior to the test week (train data)
-            - df: pd.DataFrame or str
-                - input dataframe on which the split should be performed
-                - default='prepare': used the data prepared by self.prepare() stored at
-                  self.data['prepare']
-
-        return: pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame
-            - X_train, y_train, X_test, y_test to be used for model training
+        split data into X_train, y_train, X_test, y_test
+        The size of X_train is determined by the train window (weeks)
+        We perform Weight of Evidence Encoding (WOE) for shoppers and products
+        We separating target (purchased) and features
+        Args:
+            test_week: (int) week for which the model should be tested (test data)
+            train_window: (int) number of weeks prior to the test week (train data)
         """
 
         # todo: read this from config file
@@ -76,16 +64,9 @@ class Model:
         
         # Split features X and target y
         # ------------------------------------------------------------------------------
-        features_to_drop = [
-            "purchased",
-            "shopper",
-            "week",
-            "product",
-            "product_history",
-            "last_purchase",
-        ]
-        features = [col for col in train.columns if col not in features_to_drop]
-        
+        non_features = ["shopper", "week", "product", "purchased"]
+        features = [col for col in train.columns if col not in non_features]
+
         X_train = train[features]
         y_train = train["purchased"]
         X_test = test[features]
