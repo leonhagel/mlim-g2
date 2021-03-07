@@ -17,7 +17,7 @@ class DataStreamer:
             callback = self.load_data
         )
         
-        data = self.clean(baskets_coupons)      
+        data = self.clean(baskets_coupons, config['model'])      
         week_hist = self.get_week_hist(data)
         dataset = self.create_dataset(data, config['model'])
         
@@ -43,17 +43,15 @@ class DataStreamer:
         return data_compressed
 
         
-    def clean(self, data):
+    def clean(self, data, config):
         data["discount"].fillna(0, inplace=True)
         data["discount"] = data["discount"] / 100
         data["price"] = data["price"] / (1 - data["discount"])
         data["purchased"] = data["price"].notna().astype("int8")
-        
 
-        #read this from config
         # todo: reduce before merging makes more sense
         # -----------------------------------------
-        max_shoppers = 2000
+        max_shoppers = config['n_shoppers']
         data = data[data['shopper'] < max_shoppers]
         # -----------------------------------------
         return data
@@ -67,7 +65,7 @@ class DataStreamer:
     
     def get_mode_prices(self, dataset):
         """
-        returns mode price for every price
+        returns mode price for every product
         table columns: product, mode_price
         """
         get_mode = lambda x: pd.Series.mode(x)[0]
@@ -80,7 +78,7 @@ class DataStreamer:
         return mode_prices
     
  
-    # replace missing prices with mode price in associated week
+    # replace missing prices with mode price
     # ------------------------------------------------------------------------------  
     def impute_missing_prices(self, dataset): 
         mode_prices = self.get_mode_prices(dataset)
