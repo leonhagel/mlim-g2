@@ -61,7 +61,7 @@ class Model:
             test["shopper"].astype("category")
         )["shopper"].values
         
-        encoder = ce.WOEEncoder()
+        encoder = category_encoders.WOEEncoder()
         
         train["product_WOE"] = encoder.fit_transform(
             train["product"].astype("category"), train["purchased"]

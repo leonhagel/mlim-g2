@@ -60,11 +60,9 @@ class FeatureCreator:
 
         # drop week_hist (helper to derive features)
         # ------------------------------------------------------------------------------
-        output = output.drop('week_hist', 1)
+        self.output = output.drop('week_hist', 1)
         
-        
-        return output
-
+        return self.output
         
         # @BENEDIKT
         # feature: user features, e.g. user-coupon redemption rate

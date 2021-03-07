@@ -64,7 +64,7 @@ class DataLoader:
 
         get_mode = lambda x: pd.Series.mode(x)[0]
         
-        mode_prices = df.groupby(['product', 'week']).agg(
+        mode_prices = df.groupby('product').agg(
             mode_price=('price',get_mode)
         ).reset_index()
 
@@ -74,18 +74,17 @@ class DataLoader:
     # replace missing prices with mode price in associated week
     # ------------------------------------------------------------------------------  
     def impute_missing_prices(self, output): 
-  
         mode_prices = self.get_mode_prices(output)
-        output = output.merge(mode_prices, how='left', on=['week', 'product'])
+        output = output.merge(mode_prices, how='left', on=['product'])
         output['price'] = output['price'].fillna(output['mode_price'])
         output.drop('mode_price', axis=1, inplace=True)
-        print("replaced missing prices with mean")
+        print("replaced missing prices with mode")
         
         return output
 
 
     def get_output(self, data):
-        # read this from config FILE
+        # todo: read this from config FILE
         n_shoppers = 2000
         n_products = 250
         shopper = range(n_shoppers)
@@ -93,8 +92,6 @@ class DataLoader:
         test_week = 90
         train_window = 4
         week = range(test_week - train_window, test_week + 1)
-
-        #trend_windows = [1, 3, 5]
         
         output = pd.DataFrame(itertools.product(shopper, week, product))
         output.columns = ['shopper', 'week', 'product']        
