@@ -139,65 +139,11 @@ class Helper:
 # ==================================================================================
 #  Purchase_Probabilities Class
 # ==================================================================================
-class Purchase_Probabilities(Helper):
-    """
-    goal:
-        - forecasting purchase probabilities
+class DataModel:
 
-    functionality:
-        - data preparation, i.e. final data cleaning, feature creation, feature selection,
-          train test split
-        - model training and evaluation
-    """
-
-    
-    def __init__(self):
-        """
-        attributes:
-            - shoppers: list
-                - list of shoppers which are used for the model
-            - test_week: int
-                - test data: week for which the model should be tested
-                - specified using self.train_test_split()
-            - train_window: int
-                - train data: number of week prior to the test week on which the model
-                  will be trained
-                - specified using self.train_test_split()
-            - df: pd.DataFrame
-                - input data for self.train_test_split()
-                - specified using self.train_test_split()
-            - features: list
-                - names of features used for training the model
-                - specified using self.train_test_split()
-            - model_type: str
-                - name of the model type used to specify which model should be used
-                - specified using self.fit()
-            - model: object
-                - object of the trained model
-                - specified using self.fit()
-
-            - (helper-attributes: data, mappings)
-
-        public methods:
-            - prepare: prepares the data for model training - final data cleaning,
-              feature creation
-            - train_test_split: performs a time series split on the data + final
-              preparation steps, feature selection
-            - fit: trains the specified model
-            - predict: predicts the specified model
-            - score: calculates a model performance score
-            - (product_histories: get_purchase_history, get_history, get_last_purchase,
-              get_trend)
-            - (helper: load, dump, reduce_data_size, get_merged_clean, save_mappings)
-        """
-        super().__init__()
-        self.shoppers = None
-        self.test_week = None
-        self.train_window = None
-        self.df = None
-        self.features = None
-        self.model_type = None
-        self.model = None
+    def __init__(self, output, week_hist):
+        self.output = output
+        self.week_hist = week_hist
 
 
     # get mode prices
@@ -207,7 +153,7 @@ class Purchase_Probabilities(Helper):
         returns mode price for every product-week combination 
         table columns: product, week, mode_price
         """
-        df = self.data['clean'].copy()
+        df = self.output.copy()
         df = df[df["price"].notna()]
 
         get_mode = lambda x: pd.Series.mode(x)[0]
@@ -219,32 +165,9 @@ class Purchase_Probabilities(Helper):
         return mode_prices
     
 
-    def prepare(
-        self,
-        shopper = range(2000),
-        week = range(86,91),
-        product = range(250),
-        trend_windows: list = [1, 3, 5],
-    ):
-        df = self.data['clean']
-        """
-        preparing data for train test split
-            - adjusting the data structure according to the final output
-            - treating missing price values using replacement
-            - merge week_hist
-            - feature creation
-        """
-
-
-        # adjusting the data structure according to the final output
-        # ------------------------------------------------------------------------------
-        output = pd.DataFrame(itertools.product(shopper, week, product))
-        output.columns = ['shopper', 'week', 'product']        
-        output = output.merge(df, how="left")
-        output["purchased"].fillna(0, inplace=True)
-        output["discount"].fillna(0, inplace=True)
+    def prepare(self):
         
-        
+        output = self.output
         # replace missing prices with mode price in associated week
         # ------------------------------------------------------------------------------        
         mode_prices = self.get_mode_prices()
@@ -255,14 +178,14 @@ class Purchase_Probabilities(Helper):
         
         print("replaced missing prices with mean")    
     
-    
         # merge week_hist column to derive features, will be dropped later
         # -> week_hist columns are: shopper, product, week_hist
         # -> merge is performed on product, shopper
         # ------------------------------------------------------------------------------
-        output = output.merge(self.week_hist, how="left")
+        output = output.merge(week_hist, how="left")
 
-    
+        return output
+   
         # feature: weeks since last purchase
         # ------------------------------------------------------------------------------
         time_factor = 1.15

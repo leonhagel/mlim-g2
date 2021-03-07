@@ -53,6 +53,36 @@ class DataLoader:
         
         return week_hist
 
+    
+    def get_mode_prices(self, output):
+        """
+        returns mode price for every product-week combination 
+        table columns: product, week, mode_price
+        """
+        df = output.copy()
+        df = df[df["price"].notna()]
+
+        get_mode = lambda x: pd.Series.mode(x)[0]
+        
+        mode_prices = df.groupby(['product', 'week']).agg(
+            mode_price=('price',get_mode)
+        ).reset_index()
+
+        return mode_prices
+    
+ 
+    # replace missing prices with mode price in associated week
+    # ------------------------------------------------------------------------------  
+    def impute_missing_prices(self, output): 
+  
+        mode_prices = self.get_mode_prices(output)
+        output = output.merge(mode_prices, how='left', on=['week', 'product'])
+        output['price'] = output['price'].fillna(output['mode_price'])
+        output.drop('mode_price', axis=1, inplace=True)
+        print("replaced missing prices with mean")
+        
+        return output
+
 
     def get_output(self, data):
         # read this from config FILE
@@ -72,6 +102,9 @@ class DataLoader:
         output["purchased"].fillna(0, inplace=True)
         output["discount"].fillna(0, inplace=True)
         
+        output = self.impute_missing_prices(output)
+        
+        
         return output
     
     
@@ -83,16 +116,10 @@ class DataLoader:
         )
         
         data = self.clean(data)
-        
         self.data = data
-        self.week_hist = self.get_week_hist(data)
-        self.output = self.get_output(data)
-        print('everything loaded!')
         
+        week_hist = self.get_week_hist(data)
+        output = self.get_output(data)
+        self.output = output.merge(week_hist, how="left")
 
-        
-
-        
-
- 
-        
+        print('output is ready!')
