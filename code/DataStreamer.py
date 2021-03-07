@@ -60,32 +60,20 @@ class DataStreamer:
 
 
     def get_week_hist(self, data):
-
-        n_rows = data["shopper"].nunique()
-        n_cols = data["product"].nunique()
-        
-        table = pd.DataFrame(itertools.product(list(range(n_rows)), list(range(n_cols))))
-        table.columns = ['shopper', "product"]
-        
-        data_purchased = data[data["purchased"] == 1]
-        hist = data_purchased.groupby(['product', 'shopper'])['week'].apply(list).reset_index(name='week_hist')
-        week_hist = table.merge(hist, how='left')
-        
+        purchases = data[data["purchased"] == 1]
+        week_hist = purchases.groupby(['product', 'shopper'])['week'].apply(list).reset_index(name='week_hist')
         return week_hist
-
+ 
     
     def get_mode_prices(self, dataset):
         """
-        returns mode price for every product-week combination 
-        table columns: product, week, mode_price
+        returns mode price for every price
+        table columns: product, mode_price
         """
-        df = dataset.copy()
-        df = df[df["price"].notna()]
-
         get_mode = lambda x: pd.Series.mode(x)[0]
         
         # todo: don't use future data, group by week
-        mode_prices = df.groupby('product').agg(
+        mode_prices = dataset.groupby('product').agg(
             mode_price=('price', get_mode)
         ).reset_index()
 
@@ -120,7 +108,6 @@ class DataStreamer:
         dataset["discount"].fillna(0, inplace=True)
 
         dataset = self.impute_missing_prices(dataset)
-        
         
         return dataset
     
