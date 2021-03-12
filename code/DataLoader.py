@@ -3,7 +3,7 @@ import Utils
 import itertools
 
 
-class DataStreamer:
+class DataLoader:
     
     def __init__(self, config):
         self.expected_input = ['baskets', 'coupons', 'coupons_index']
@@ -19,9 +19,11 @@ class DataStreamer:
         
         data = self.clean(baskets_coupons, config['model'])      
         week_hist = self.get_week_hist(data)
+        week_prices = self.get_week_prices(data)
         dataset = self.create_dataset(data, config['model'])
         
-        self.dataset = dataset.merge(week_hist, how="left")
+        dataset = dataset.merge(week_hist, how="left")
+        self.dataset = dataset.merge(week_prices, how="left")
         print('dataset is ready!') 
         return self.dataset
 
@@ -62,6 +64,12 @@ class DataStreamer:
         week_hist = purchases.groupby(['product', 'shopper'])['week'].apply(list).reset_index(name='week_hist')
         return week_hist
  
+    
+    def get_week_prices(self, data):
+        price_available = data[data['price'].notnull()]
+        week_prices = price_available.groupby(['product', 'week'])['price'].apply(list).reset_index(name='week_prices')
+        return week_prices
+
     
     def get_mode_prices(self, dataset):
         """
