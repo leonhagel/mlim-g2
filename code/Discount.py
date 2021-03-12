@@ -1,3 +1,7 @@
+import pandas as pd
+import numpy as np
+
+
 # class inheritance level: 3 - Determining the optimal coupons
 # ==================================================================================
 from Pipeline import Purchase_Probabilities
@@ -20,7 +24,7 @@ class No_Cross_Effects(Purchase_Probabilities):
     functionality:
         - creating an overview/dataframe of expected revenue changes for candidate
           discounts
-        - getting the top-k coupons for each shopper
+        - getting the top-n coupons for each shopper
         - pipeline function which summarizes the process
     """
 
@@ -30,11 +34,11 @@ class No_Cross_Effects(Purchase_Probabilities):
             - discounts: list
                 - list of candidate discounts
                 - specified using self.get_revenues()
-            - k_discounts: int
+            - n_coupons: int
                 - number of coupons to be recommended for each shopper
                 - specified using self.pipeline(), self.get_top_coupons()
-            - top_discounts: pd.DataFrame
-                - dataframe of top-k coupons for each shopper
+            - top_coupons: pd.DataFrame
+                - dataframe of top-n coupons for each shopper
                 - specified using self.get_top_coupons()
 
             - (helper-attributes: data, mappings)
@@ -43,7 +47,7 @@ class No_Cross_Effects(Purchase_Probabilities):
         public methods:
             - get_revenue: creates an overview/dataframe of changes in expected revenue
               due to discounts
-            - get_top_coupons: extracts the top-k coupons for each shopper based on the
+            - get_top_coupons: extracts the top-n coupons for each shopper based on the
               revenue data
             - pipeline: summarizes the greedy approach to determine the optimal coupons
 
@@ -55,9 +59,10 @@ class No_Cross_Effects(Purchase_Probabilities):
         """
         super().__init__()
         self.discounts = None
-        self.k_discounts = None
+        self.n_coupons = None
         self.top_coupons = None
 
+        
     # changes in expected revenue
     # ----------------------------------------------------------------------------------
     def get_revenue(self, X_zero, discounts, df="prepare"):
@@ -131,12 +136,13 @@ class No_Cross_Effects(Purchase_Probabilities):
             X = X.append(template)
         return X
 
+    
     # extracting top coupons
     # ----------------------------------------------------------------------------------
-    def get_top_coupons(self, shoppers="all", k_discounts=5, df="revenue"):
+    def get_top_coupons(self, shoppers="all", n_coupons=5, df="revenue"):
         """
         use:
-            - extracting the top-k coupons for each shopper
+            - extracting the top-n coupons for each shopper
 
         requirements:
             - df='revenue': revenue dataframe needs to be stored at self.data['revenue']
@@ -146,7 +152,7 @@ class No_Cross_Effects(Purchase_Probabilities):
                 - list of shoppers for which the top coupons should be extracted
                 - for tuple: specifies the first and last shopper in a shopper range
                 - default='all': use all shoppers which are included in the data
-            - k_discounts: int
+            - n_coupons: int
                 - number of coupons to be recommended for each shopper
             - df: pd.DataFrame or str
                 - dataframe which contains the effects of discounts on the expected
@@ -156,34 +162,34 @@ class No_Cross_Effects(Purchase_Probabilities):
                   self.data['revenue']
 
         return: pd.DataFrame
-            - final output which contains the top-k coupons for each shopper in the
+            - final output which contains the top-n coupons for each shopper in the
               test week
 
         """
-        self.k_discounts = k_discounts
+        self.n_coupons = n_coupons
         if type(shoppers) == tuple:
             shoppers = range(shoppers[0], shoppers[-1] + 1)
         if shoppers == "all":
             shoppers = self.shoppers
         coupons = {
-            shopper: self._get_top_coupons(shopper, k_discounts, df=df)
+            shopper: self._get_top_coupons(shopper, n_coupons, df=df)
             for shopper in shoppers
         }
 
         output = list(coupons.values())[0]
-        output["coupon"] = range(k_discounts)
+        output["coupon"] = range(n_coupons)
         for coupon in list(coupons.values())[1:]:
-            coupon["coupon"] = range(k_discounts)
+            coupon["coupon"] = range(n_coupons)
             output = output.append(coupon)
 
         output = output[["shopper", "week", "coupon", "product", "discount"]]
         self.top_coupons = output
         return output
 
-    def _get_top_coupons(self, shopper, k_discounts, df="revenue"):
+    def _get_top_coupons(self, shopper, n_coupons, df="revenue"):
         """
         use:
-            - extracting the top-k coupons for one shopper
+            - extracting the top-n coupons for one shopper
 
         requirements:
             - revenue dataframe needs to be stored at self.data['revenue']
@@ -191,7 +197,7 @@ class No_Cross_Effects(Purchase_Probabilities):
         input:
             - shopper: int
                 - shopper for which the top coupons should be extracted
-             - k_discounts: int
+             - n_coupons: int
                 - number of coupons to be recommended for each shopper
             - df: pd.DataFrame or str
                 - dataframe which contains the effects of discounts on the expected revenue
@@ -200,12 +206,9 @@ class No_Cross_Effects(Purchase_Probabilities):
                   self.data['revenue']
 
         return: pd.DataFrame
-            - dataframe of the top-k coupons for the shopper; to be used for the
-              final output
+            - dataframe of the top-n coupons for the shopper; to be used for the final output
         """
-        import pandas as pd
-        import numpy as np
-
+        
         if type(df) == str:
             df = self.data[df]
 
@@ -217,7 +220,7 @@ class No_Cross_Effects(Purchase_Probabilities):
         df = df.loc[df["discount"] != 0, :]
         output = pd.DataFrame(df.iloc[0]).T
         i = 1
-        while output.shape[0] < k_discounts:
+        while output.shape[0] < n_coupons:
             row = df.iloc[i]
             if np.logical_not(np.isin(row["product"], output["product"])):
                 output = output.append(row)
@@ -231,23 +234,23 @@ class No_Cross_Effects(Purchase_Probabilities):
         test_week,
         train_window,
         discounts,
-        k_discounts=5,
+        n_coupons=5,
         shoppers="all",
         model_type="lgbm",
     ):
         """
         use:
-            - creating the final output which contains the top-k coupons for each
+            - creating the final output which contains the top-n coupons for each
               shopper for the test week
 
         input:
             - test_week: int
-                - week for which the top-k coupons should be extracted
+                - week for which the top-n coupons should be extracted
             - train_window: int
                 - weeks prior to the test week, which should be used for model training
             - discount: list
                 - list of candidate discounts
-            - k_discounts: int
+            - n_coupons: int
                 - number of coupons to be recommended for each shopper
                 - default=5: according to the task
             - shoppers: list or tuple
@@ -259,7 +262,7 @@ class No_Cross_Effects(Purchase_Probabilities):
                 - default='lgbm': lightgbm classifier
 
         return: pd.DataFrame
-            - final output which contains the top-k coupons for each shopper in the
+            - final output which contains the top coupons for each shopper in the
               test week
         """
         # train test split
@@ -273,5 +276,5 @@ class No_Cross_Effects(Purchase_Probabilities):
         # creating model input for the candidate discounts and calculating the expected revenues
         # X = self._add_discounts(X_zero, discounts)
         revenue = self.get_revenue(X_zero, discounts)
-        top_coupons = self.get_top_coupons(shoppers=shoppers, k_discounts=k_discounts)
+        top_coupons = self.get_top_coupons(shoppers=shoppers, n_coupons=n_coupons)
         return top_coupons

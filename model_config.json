@@ -1,0 +1,16 @@
+{
+    "n_shoppers": 2000,
+    "n_products": 250,
+    "test_week": 90,
+    "n_coupons": 5,
+    "discounts": [0.15, 0.2, 0.25, 0.3],
+    "train_window": 4,
+    "data": {
+        "path": "../data/",
+        "files": {
+            "baskets": "baskets.parquet",
+            "coupons": "coupons.parquet",
+            "coupons_index": "coupon_index.parquet"          
+        }
+    }
+}
