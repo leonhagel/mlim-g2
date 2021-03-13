@@ -7,8 +7,9 @@ import lightgbm # https://github.com/microsoft/LightGBM/issues/1369
 
 class Model:
     
-    def __init__(self, data):
+    def __init__(self, data, config):
         self.data = data
+        self.config = config
     
 
     def train_test_split(self):
@@ -23,10 +24,8 @@ class Model:
             train_window: (int) number of weeks prior to the test week (train data)
         """
 
-        # todo: read this from config file
-        test_week = 90
-        train_window = 4
-        
+        test_week = self.config['model']['test_week']
+        train_window = self.config['model']['train_window']
         data = self.data
         
 
@@ -38,6 +37,9 @@ class Model:
 
 
         # WOE category encoding
+        # Hier wird ein Deprecation Warning geschmissen
+        # FutureWarning: is_categorical is deprecated and will be removed in a future version.  
+        # Use is_categorical_dtype instead
         # ------------------------------------------------------------------------------
         encoder = category_encoders.WOEEncoder()
         
@@ -59,7 +61,7 @@ class Model:
             test["product"].astype("category")
         )["product"].values
         
-        clear_output()
+        #clear_output()
 
         
         # Split features X and target y
@@ -75,94 +77,27 @@ class Model:
         return X_train, y_train, X_test, y_test
 
     
-    def fit(self, model_type: str, X_train, y_train, **kwargs):
+    def fit(self, X_train, y_train, **kwargs):
         """
-        use:
-            - trains a model according to the specified model_type and train data
-
-        input:
-            - model_type: str
-                - specifies which model should be used for model training
-                - requirements: method will call a method called self._fit_#MODEL_TYPE#()
-                  which needs to contain
-                  all model training steps for the respective model_type and needs to
-                  return the model object
-            - X_train: pd.DataFrame
-                - dataframe containing the train features
-            - y_train: pd.DataFrame
-                - dataframe containing the train target
-            - **kwargs: keyword-argument dict
-                - contains potential keyword arguments for the model training depending
-                  on the model type
-
-        return: object
-            - trained model
+        Fit a simple LGBM Classifier
         """
-        self.model_type = model_type
-        self.model = eval(f"self._fit_{model_type}(X_train, y_train, **kwargs)")
-        return self.model
+        lgbm_classifier = lightgbm.LGBMClassifier()
+        lgbm_classifier.fit(X_train, y_train, **kwargs)
+        self.lgbm_classifier = lgbm_classifier
 
     
-    def _fit_lgbm(self, X_train, y_train, **kwargs):
+    def predict(self, X_test):
         """
-        use:
-            - trains a lightgbm classifier
-
-        input:
-            - X_train: pd.DataFrame
-                - dataframe containing the train features
-            - y_train: pd.DataFrame
-                - dataframe containing the train target
-            - **kwargs: keyword-argument dict
-                - further meta parameter for the lgbm
-
-        return: object
-            - trained lgb-model object
+        Compute purchase probability predictions
         """
-
-        model = lightgbm.LGBMClassifier()
-        model.fit(X_train, y_train, **kwargs)
-        return model
-
-    
-    def predict(self, model, X):
-        """
-        use:
-            - predict a trained model based on the provided data
-
-        input:
-            - model: object
-                - trained model
-                - supported models: lightgbm classifier
-            - X: pd.DataFrame
-                - data for which the predictions should be made
-
-        return: array-like
-            - predicted purchase probabilities for the provided data
-        """
-        if type(model) == lightgbm.sklearn.LGBMClassifier:
-            y_hat = model.predict_proba(X)[:, 1]
+        lgbm_classifier = self.lgbm_classifier
+        y_hat = lgbm_classifier.predict_proba(X_test)[:, 1]
         return y_hat
 
     
-    def score(self, y_true, y_hat, metric="log_loss"):
+    def get_score(self, y, y_hat):
         """
-        use:
-            - calculating performance metrics for model evaluation
-
-        input:
-            - y_true: array-like
-                - true value of the target
-            - y_hat: array-like
-                - predicted value of the target
-            - metric: function(y_true, y_hat)
-                - function that will calculate the metric/score
-                - default='log-loss': calculates the log loss using sklearn.metrics.log_loss
-
-        return:
-            - model performance score
+        Calculate log_loss score
         """
-        if metric == "log_loss":
-            metric = sklearn.metrics.log_loss
-
-        return metric(y_true, y_hat)
+        metric = sklearn.metrics.log_loss
+        return metric(y, y_hat)

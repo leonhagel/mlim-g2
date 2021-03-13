@@ -1,21 +1,32 @@
 import pandas as pd
 import numpy as np
+import Utils
+
 
 class FeatureCreator:
 
-    def __init__(self, output):
-        self.output = output
-        self.trend_windows = [1, 3, 5]
-
+    def __init__(self, dataset, config):
+        self.dataset = dataset
+        self.config = config
 
     def run(self):
+        model_data = Utils.parquet_loader(
+            parquet_name = "model_data",
+            path = self.config['data']['path'],
+            callback = self.create_features
+        )
         
-        output = self.output
+        return model_data
         
+    def create_features(self):
+        
+        dataset = self.dataset
+        
+    
         # weeks since last purchase
         # ------------------------------------------------------------------------------
         time_factor = 1.15
-        max_weeks = np.ceil(output["week"].max() * time_factor)
+        max_weeks = np.ceil(dataset["week"].max() * time_factor)
 
         # this function can be improved / split
         def get_weeks_since_last_purchase(row):
@@ -30,7 +41,7 @@ class FeatureCreator:
             
             return weeks_since_last_purchase
         
-        output['weeks_since_last_purchase'] = output.apply(get_weeks_since_last_purchase, axis=1)
+        dataset['weeks_since_last_purchase'] = dataset.apply(get_weeks_since_last_purchase, axis=1)
         
         print("added feature: weeks_since_last_purchase")
     
@@ -45,24 +56,24 @@ class FeatureCreator:
             trend = len(purchases_in_window) / window
             return trend
 
-        for window in self.trend_windows:
-            output["trend_" + str(window)] = output.apply(get_trend, args=([window]), axis=1)
+        for window in self.config['model']['trend_windows']:
+            dataset["trend_" + str(window)] = dataset.apply(get_trend, args=([window]), axis=1)
 
         print("added feature: purchase trend features")
         
         
         # product purchase frequency (set week as window)
         # ------------------------------------------------------------------------------
-        output["product_freq"] = output.apply(lambda row: get_trend(row, row['week']), axis=1)
+        dataset["product_freq"] = dataset.apply(lambda row: get_trend(row, row['week']), axis=1)
         
         print("added feature: product_freq")
         
 
-        # drop week_hist (helper to derive features)
+        # drop week_hist and week_prices (helpers to derive features)
         # ------------------------------------------------------------------------------
-        self.output = output.drop('week_hist', 1)
+        self.model_data = dataset.drop(columns=['week_hist', 'week_prices'])
         
-        return self.output
+        return self.model_data
         
         # @BENEDIKT
         # feature: user features, e.g. user-coupon redemption rate
