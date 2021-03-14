@@ -51,11 +51,9 @@ class DataLoader:
         data["price"] = data["price"] / (1 - data["discount"])
         data["purchased"] = data["price"].notna().astype("int8")
 
-        # todo: reduce before merging makes more sense
-        # -----------------------------------------
         max_shoppers = config['n_shoppers']
         data = data[data['shopper'] < max_shoppers]
-        # -----------------------------------------
+
         return data
 
 
@@ -65,41 +63,40 @@ class DataLoader:
         return week_hist
  
     
-    def get_week_prices(self, data):
-        price_available = data[data['price'].notnull()]
-        week_prices = price_available.groupby(['product', 'week'])['price'].apply(list).reset_index(name='week_prices')
-        return week_prices
-
-    
-    def get_mode_prices(self, dataset):
+    def get_last_week_mode_price(self, dataset):
         """
-        returns mode price for every product
-        table columns: product, mode_price
+        Get mode price of prev week for every product-week combination
+        (This will set the first week to NaN for every product)
         """
         get_mode = lambda x: pd.Series.mode(x)[0]
-        
-        # todo: don't use future data, group by week
-        mode_prices = dataset.groupby('product').agg(
-            mode_price=('price', get_mode)
+
+        price_data = dataset.groupby(['product', 'week']).agg(
+            week_mode_price=('price', get_mode)
         ).reset_index()
 
-        return mode_prices
+        price_data['last_week_mode_price'] = price_data.groupby('product')['week_mode_price'].shift()
+        price_data = price_data.drop(columns=['week_mode_price'])
+
+        return last_week_mode_prices
     
  
-    # replace missing prices with mode price
-    # ------------------------------------------------------------------------------  
-    def impute_missing_prices(self, dataset): 
-        mode_prices = self.get_mode_prices(dataset)
-        dataset = dataset.merge(mode_prices, how='left', on=['product'])
-        dataset['price'] = dataset['price'].fillna(dataset['mode_price'])
-        dataset.drop('mode_price', axis=1, inplace=True)
+    def impute_missing_prices(self, dataset):
+        '''
+        Replace missing product prices with the mode price of the previous week
+        '''
+        last_week_mode_prices = self.get_last_week_mode_price(dataset)
+        dataset = dataset.merge(last_week_mode_prices, how='left', on=['product'])
+        dataset['price'] = dataset['price'].fillna(dataset['last_week_mode_price'])
+        dataset = dataset.drop(columns=['last_week_mode_price'])
         print("replaced missing prices with mode")
         
         return dataset
 
 
     def create_dataset(self, data, config):
-        
+        '''
+        Create dataset based on configured test week and train_window
+        '''
         start_week = config['test_week'] - config['train_window']
         end_week = config['test_week'] + 1
         

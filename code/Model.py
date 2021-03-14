@@ -43,24 +43,40 @@ class Model:
         # ------------------------------------------------------------------------------
         encoder = category_encoders.WOEEncoder()
         
-        train["shopper_WOE"] = encoder.fit_transform(
+        train.loc[:,"shopper_WOE"] = encoder.fit_transform(
             train["shopper"].astype("category"), train["purchased"]
         )["shopper"].values
         
-        test["shopper_WOE"] = encoder.transform(
+        test.loc[:,"shopper_WOE"] = encoder.transform(
             test["shopper"].astype("category")
         )["shopper"].values
         
         encoder = category_encoders.WOEEncoder()
         
-        train["product_WOE"] = encoder.fit_transform(
+        train.loc[:,"product_WOE"] = encoder.fit_transform(
             train["product"].astype("category"), train["purchased"]
         )["product"].values
         
-        test["product_WOE"] = encoder.transform(
+        test.loc[:,"product_WOE"] = encoder.transform(
             test["product"].astype("category")
         )["product"].values
         
+        encoder = ce.WOEEncoder()
+        
+        train.loc[:, "shopper_WOE"] = encoder.fit_transform(
+            train["shopper"].astype("category"), train["purchased"]
+        )["shopper"].values
+        test.loc[:, "shopper_WOE"] = encoder.transform(
+            test["shopper"].astype("category")
+        )["shopper"].values
+        encoder = ce.WOEEncoder()
+        train.loc[:, "product_WOE"] = encoder.fit_transform(
+            train["product"].astype("category"), train["purchased"]
+        )["product"].values
+        test.loc[:, "product_WOE"] = encoder.transform(
+            test["product"].astype("category")
+        )["product"].values
+        clear_output()
         #clear_output()
 
         
