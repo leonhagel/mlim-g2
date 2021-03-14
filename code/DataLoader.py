@@ -1,6 +1,6 @@
+import itertools
 import pandas as pd
 import Utils
-import itertools
 
 
 class DataLoader:
@@ -8,13 +8,12 @@ class DataLoader:
     def __init__(self, config):
         self.expected_input = ['baskets', 'coupons', 'coupons_index']
         self.config = config
-        self.get_dataset(config)
-    
+        
 
-    def get_dataset(self, config):
+    def get_dataset(self):
         dataset = Utils.parquet_loader(
             parquet_name = "dataset",
-            path = config['data']['path'],
+            path = self.config['data']['path'],
             callback = self.create_dataset
         )
         self.dataset = dataset
