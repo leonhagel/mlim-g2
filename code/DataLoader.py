@@ -10,34 +10,51 @@ class DataLoader:
         self.config = config
         self.load(config)
     
-    def load(self, config):
-        baskets_coupons = Utils.parquet_loader(
-            parquet_name = "baskets_coupons",
-            path = config['data']['path'],
-            callback = self.load_data
-        )
-        
-        data = self.clean(baskets_coupons, config['model'])      
-        week_hist = self.get_week_hist(data)
-        week_prices = self.get_week_prices(data)
-        dataset = self.create_dataset(data, config['model'])
-        
-        dataset = dataset.merge(week_hist, how="left")
-        self.dataset = dataset.merge(week_prices, how="left")
-        print('dataset is ready!') 
-        return self.dataset
 
+    def load(self, config):
+        '''
+            dataset = Utils.parquet_loader(
+            parquet_name = "dataset",
+            path = config['data']['path'],
+            callback = self.get_dataset
+        )
+        '''
+        dataset = self.get_dataset()
+        self.dataset = dataset
+        return dataset
         
+
+    def get_dataset(self):
+        baskets_coupons = self.merge_baskets_coupons()
+        data = self.clean(baskets_coupons)      
+        week_hist = self.get_week_hist(data)
+        last_week_mode_price = self.get_last_week_mode_price(data)
+
+        dataset = self.create_dataset(data)
+        dataset = dataset.merge(week_hist, how="left")
+        dataset = dataset.merge(last_week_mode_price, how="left") #on=['product', 'week']
+        dataset = self.impute_missing_prices(dataset)
+        return dataset
+        
+
+    def reduce_by_shopper(self, data):
+        max_shoppers = self.config['model']['n_shoppers']
+        reduced_data = data[data['shopper'] < max_shoppers]
+        return reduced_data
+        #return data
     
-    def load_data(self):
-        data_config = self.config['data']
-        inputs = {name: self.read(name, data_config) for name in self.expected_input}
-        baskets_merged = inputs["baskets"].merge(inputs["coupons"], how="outer")
+
+    def merge_baskets_coupons(self):
+        inputs = {name: self.read(name) for name in self.expected_input}
         self.inputs = inputs
-        return baskets_merged
+        baskets = self.reduce_by_shopper(inputs['baskets'])
+        coupons = self.reduce_by_shopper(inputs['coupons'])        
+        baskets_coupons = baskets.merge(coupons, how="outer")
+        return baskets_coupons
         
         
-    def read(self, name, data_config):
+    def read(self, name):
+        data_config = self.config['data']
         path = data_config['path']
         filename = data_config['files'][name]
         data = pd.read_parquet(path + filename)
@@ -45,29 +62,29 @@ class DataLoader:
         return data_compressed
 
         
-    def clean(self, data, config):
+    def clean(self, data):
         data["discount"].fillna(0, inplace=True)
         data["discount"] = data["discount"] / 100
         data["price"] = data["price"] / (1 - data["discount"])
         data["purchased"] = data["price"].notna().astype("int8")
-
-        max_shoppers = config['n_shoppers']
-        data = data[data['shopper'] < max_shoppers]
-
+        #data = self.reduce_by_shopper(data)
         return data
 
 
     def get_week_hist(self, data):
+        '''
+        Get list of purchase weeks for all product-shopper combinations
+        '''
         purchases = data[data["purchased"] == 1]
         week_hist = purchases.groupby(['product', 'shopper'])['week'].apply(list).reset_index(name='week_hist')
         return week_hist
  
     
     def get_last_week_mode_price(self, dataset):
-        """
+        '''
         Get mode price of prev week for every product-week combination
         (This will set the first week to NaN for every product)
-        """
+        '''
         get_mode = lambda x: pd.Series.mode(x)[0]
 
         price_data = dataset.groupby(['product', 'week']).agg(
@@ -76,42 +93,34 @@ class DataLoader:
 
         price_data['last_week_mode_price'] = price_data.groupby('product')['week_mode_price'].shift()
         price_data = price_data.drop(columns=['week_mode_price'])
-
-        return last_week_mode_prices
+        return price_data
     
  
     def impute_missing_prices(self, dataset):
         '''
         Replace missing product prices with the mode price of the previous week
         '''
-        last_week_mode_prices = self.get_last_week_mode_price(dataset)
-        dataset = dataset.merge(last_week_mode_prices, how='left', on=['product'])
         dataset['price'] = dataset['price'].fillna(dataset['last_week_mode_price'])
         dataset = dataset.drop(columns=['last_week_mode_price'])
         print("replaced missing prices with mode")
-        
         return dataset
 
 
-    def create_dataset(self, data, config):
+    def create_dataset(self, data):
+        model_config = self.config['model']
         '''
         Create dataset based on configured test week and train_window
         '''
-        start_week = config['test_week'] - config['train_window']
-        end_week = config['test_week'] + 1
+        start_week = model_config['test_week'] - model_config['train_window']
+        end_week = model_config['test_week'] + 1
         
         weeks = range(start_week, end_week)
-        shoppers = range(config['n_shoppers'])
-        products = range(config['n_products'])
+        shoppers = range(model_config['n_shoppers'])
+        products = range(model_config['n_products'])
         
         dataset = pd.DataFrame(itertools.product(weeks, shoppers, products))
         dataset.columns = ['week', 'shopper', 'product']        
         dataset = dataset.merge(data, how="left")
         dataset["purchased"].fillna(0, inplace=True)
         dataset["discount"].fillna(0, inplace=True)
-
-        dataset = self.impute_missing_prices(dataset)
-        
         return dataset
-    
-    
