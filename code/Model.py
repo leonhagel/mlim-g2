@@ -6,20 +6,19 @@ import lightgbm # https://github.com/microsoft/LightGBM/issues/1369
 
 class Model:
     
-    def __init__(self, model_data, config):
+    def __init__(self, model_data):
         self.data = model_data
-        self.config = config
     
 
-    def train_test_split(self):
+    def train_test_split(self, config):
         """
         split data into X_train, y_train, X_test, y_test
         The size of X_train is determined by the train window (weeks)
         We perform Weight of Evidence Encoding (WOE) for shoppers and products
         We separating target (purchased) and features
         """
-        test_week = self.config['model']['test_week']
-        train_window = self.config['model']['train_window']
+        test_week = config['model']['test_week']
+        train_window = config['model']['train_window']
         data = self.data
         
 
@@ -28,7 +27,7 @@ class Model:
         start = test_week - train_window
         train = data[(data["week"] >= start) & (data["week"] < test_week)]
         test = data[data["week"] == test_week]
-        train, test = woe_encoding(train, trest)
+        train, test = self.woe_encoding(train, test)
         
         # Split features X and target y
         # ------------------------------------------------------------------------------
@@ -64,7 +63,7 @@ class Model:
             test["product"].astype("category")
         )["product"].values
         
-        encoder = ce.WOEEncoder()
+        encoder = category_encoders.WOEEncoder()
         
         train.loc[:, "shopper_WOE"] = encoder.fit_transform(
             train["shopper"].astype("category"), train["purchased"]
@@ -72,7 +71,9 @@ class Model:
         test.loc[:, "shopper_WOE"] = encoder.transform(
             test["shopper"].astype("category")
         )["shopper"].values
-        encoder = ce.WOEEncoder()
+        
+        encoder = category_encoders.WOEEncoder()
+        
         train.loc[:, "product_WOE"] = encoder.fit_transform(
             train["product"].astype("category"), train["purchased"]
         )["product"].values
