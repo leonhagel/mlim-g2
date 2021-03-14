@@ -8,29 +8,26 @@ class DataLoader:
     def __init__(self, config):
         self.expected_input = ['baskets', 'coupons', 'coupons_index']
         self.config = config
-        self.load(config)
+        self.get_dataset(config)
     
 
-    def load(self, config):
-        '''
-            dataset = Utils.parquet_loader(
+    def get_dataset(self, config):
+        dataset = Utils.parquet_loader(
             parquet_name = "dataset",
             path = config['data']['path'],
-            callback = self.get_dataset
+            callback = self.create_dataset
         )
-        '''
-        dataset = self.get_dataset()
         self.dataset = dataset
         return dataset
         
 
-    def get_dataset(self):
+    def create_dataset(self):
         baskets_coupons = self.merge_baskets_coupons()
         data = self.clean(baskets_coupons)      
         week_hist = self.get_week_hist(data)
         last_week_mode_price = self.get_last_week_mode_price(data)
 
-        dataset = self.create_dataset(data)
+        dataset = self.build_dataset_from_config(data)
         dataset = dataset.merge(week_hist, how="left")
         dataset = dataset.merge(last_week_mode_price, how="left") #on=['product', 'week']
         dataset = self.impute_missing_prices(dataset)
@@ -106,10 +103,10 @@ class DataLoader:
         return dataset
 
 
-    def create_dataset(self, data):
+    def build_dataset_from_config(self, data):
         model_config = self.config['model']
         '''
-        Create dataset based on configured test week and train_window
+        Initialize dataset based on configured test week and train_window
         '''
         start_week = model_config['test_week'] - model_config['train_window']
         end_week = model_config['test_week'] + 1
