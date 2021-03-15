@@ -27,7 +27,8 @@ class Model:
         start = test_week - train_window
         train = data[(data["week"] >= start) & (data["week"] < test_week)]
         test = data[data["week"] == test_week]
-        train, test = self.woe_encoding(train, test)
+        train, test = self.woe_encode(train, test, 'shopper')
+        train, test = self.woe_encode(train, test, 'product')
         
         # Split features X and target y
         # ------------------------------------------------------------------------------
@@ -43,7 +44,8 @@ class Model:
 
     
     def woe_encode(self, train, test, feature):
-
+        train = train.copy()
+        test = test.copy()
         encoder = category_encoders.WOEEncoder()
         
         train[f'{feature}_WOE'] = encoder.fit_transform(
@@ -53,17 +55,8 @@ class Model:
         test[f'{feature}_WOE'] = encoder.transform(
             test[feature].astype("category")
         )[feature].values
-        
         return train, test
-        
- 
-    def woe_encoding(self, train, test):
-        train = train.copy()
-        test = test.copy()
-        train, test = self.woe_encode(train, test, 'shopper')
-        train, test = self.woe_encode(train, test, 'product')
-        return train, test
-        
+                
 
     def fit(self, X_train, y_train, **kwargs):
         """
