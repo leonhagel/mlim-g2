@@ -11,6 +11,10 @@ class DataLoader:
         
 
     def get_dataset(self):
+        '''
+        If available, read dataset.parquet.gzip from disk
+        Ohterwise create dataset and save it to disk
+        '''
         dataset = Utils.parquet_loader(
             parquet_name = "dataset",
             path = self.config['data']['path'],
@@ -28,16 +32,18 @@ class DataLoader:
 
         dataset = self.build_dataset_from_config(data)
         dataset = dataset.merge(week_hist, how="left")
-        dataset = dataset.merge(last_week_mode_price, how="left") #on=['product', 'week']
+        dataset = dataset.merge(last_week_mode_price, how="left")
         dataset = self.impute_missing_prices(dataset)
         return dataset
         
 
     def reduce_by_shopper(self, data):
+        '''
+        Reduce data to first n shoppers specified in model config
+        '''
         max_shoppers = self.config['model']['n_shoppers']
         reduced_data = data[data['shopper'] < max_shoppers]
         return reduced_data
-        #return data
     
 
     def merge_baskets_coupons(self):
@@ -50,6 +56,9 @@ class DataLoader:
         
         
     def read(self, name):
+        '''
+        Read memory reduced parquet files
+        '''
         data_config = self.config['data']
         path = data_config['path']
         filename = data_config['files'][name]
@@ -59,17 +68,20 @@ class DataLoader:
 
         
     def clean(self, data):
+        '''
+        Basic data cleaning after baskets-coupons merge
+        '''
         data["discount"].fillna(0, inplace=True)
         data["discount"] = data["discount"] / 100
         data["price"] = data["price"] / (1 - data["discount"])
         data["purchased"] = data["price"].notna().astype("int8")
-        #data = self.reduce_by_shopper(data)
         return data
 
 
     def get_week_hist(self, data):
         '''
-        Get list of purchase weeks for all product-shopper combinations
+        Helper to derive time based features later on
+        computes list of purchase weeks for all product-shopper combinations
         '''
         purchases = data[data["purchased"] == 1]
         week_hist = purchases.groupby(['product', 'shopper'])['week'].apply(list).reset_index(name='week_hist')
@@ -94,7 +106,7 @@ class DataLoader:
  
     def impute_missing_prices(self, dataset):
         '''
-        Replace missing product prices with the mode price of the previous week
+        Replace missing prices with the mode price of the previous week
         '''
         dataset['price'] = dataset['price'].fillna(dataset['last_week_mode_price'])
         dataset = dataset.drop(columns=['last_week_mode_price'])
@@ -105,7 +117,7 @@ class DataLoader:
     def build_dataset_from_config(self, data):
         model_config = self.config['model']
         '''
-        Initialize dataset based on configured test week and train_window
+        Build dataset based on configured test week and train_window
         '''
         start_week = model_config['test_week'] - model_config['train_window']
         end_week = model_config['test_week'] + 1

@@ -11,6 +11,10 @@ class FeatureCreator:
 
         
     def get_model_data(self):
+        '''
+        If available, read model_data.parquet.gzip from disk
+        Ohterwise create model_data and save it to disk
+        '''
         model_data = Utils.parquet_loader(
             parquet_name = "model_data",
             path = self.config['data']['path'],
@@ -71,8 +75,8 @@ class FeatureCreator:
     def create_cat_cluster(self, dataset):
         '''
         add category cluster (e.g. junk food)
+        EDA based feature, we found 3 category clusters (labels 0, 1, 2)
         '''
-        # EDA based feature, we found 3 category clusters (labels 0, 1, 2)
         cat_cluster_labels = [1, 1, 2, 2, 0, 1, 0, 2, 2, 2, 0, 2, 2, 2, 2, 1, 2, 1, 2, 0, 2, 1, 2, 1, 2]
         cat_to_cluster_mapping = pd.DataFrame({"cat_cluster": cat_cluster_labels})
         dataset = dataset.merge(cat_to_cluster_mapping, left_on='product_cat', right_index=True)
@@ -80,7 +84,6 @@ class FeatureCreator:
         return dataset
 
     
-    # Todo rename cluster discount
     def create_cluster_discount(self, dataset):
         '''
         Calculate the sum of discounts a shopper was given for cluster products in the same week
@@ -112,6 +115,9 @@ class FeatureCreator:
         max_weeks = np.ceil(dataset["week"].max() * time_factor)
         
         def get_weeks_since_last_purchase(row):
+            '''
+            Calculate n weeks since last product purchase by same shopper
+            '''
             current_week = row['week']
             week_hist = row['week_hist']
             if not isinstance(week_hist, list): return max_weeks  
@@ -124,6 +130,9 @@ class FeatureCreator:
         dataset['weeks_since_last_purchase'] = dataset.apply(get_weeks_since_last_purchase, axis=1)
     
         def get_trend(row, window):
+            '''
+            Calculate relative product purchase frequency for varying time windows
+            '''
             week = row['week']
             week_hist = row['week_hist']
             if not isinstance(week_hist, list): return 0  
@@ -136,7 +145,7 @@ class FeatureCreator:
         
         dataset["product_freq"] = dataset.apply(lambda row: get_trend(row, row['week']), axis=1)
         
-        # drop week_hist variable, which was a helper to derive time features
+        # we drop week_hist variable, which was a helper to derive the time features
         dataset = dataset.drop(columns=['week_hist'])
         return dataset
     
