@@ -42,45 +42,26 @@ class Model:
         return X_train, y_train, X_test, y_test
 
     
+    def woe_encode(self, train, test, feature):
+
+        encoder = category_encoders.WOEEncoder()
+        
+        train[f'{feature}_WOE'] = encoder.fit_transform(
+            train[feature].astype("category"), train["purchased"]
+        )[feature].values
+        
+        test[f'{feature}_WOE'] = encoder.transform(
+            test[feature].astype("category")
+        )[feature].values
+        
+        return train, test
+        
+ 
     def woe_encoding(self, train, test):
-        encoder = category_encoders.WOEEncoder()
-        
-        train.loc[:,"shopper_WOE"] = encoder.fit_transform(
-            train["shopper"].astype("category"), train["purchased"]
-        )["shopper"].values
-        
-        test.loc[:,"shopper_WOE"] = encoder.transform(
-            test["shopper"].astype("category")
-        )["shopper"].values
-        
-        encoder = category_encoders.WOEEncoder()
-        
-        train.loc[:,"product_WOE"] = encoder.fit_transform(
-            train["product"].astype("category"), train["purchased"]
-        )["product"].values
-        
-        test.loc[:,"product_WOE"] = encoder.transform(
-            test["product"].astype("category")
-        )["product"].values
-        
-        encoder = category_encoders.WOEEncoder()
-        
-        train.loc[:, "shopper_WOE"] = encoder.fit_transform(
-            train["shopper"].astype("category"), train["purchased"]
-        )["shopper"].values
-        test.loc[:, "shopper_WOE"] = encoder.transform(
-            test["shopper"].astype("category")
-        )["shopper"].values
-        
-        encoder = category_encoders.WOEEncoder()
-        
-        train.loc[:, "product_WOE"] = encoder.fit_transform(
-            train["product"].astype("category"), train["purchased"]
-        )["product"].values
-        test.loc[:, "product_WOE"] = encoder.transform(
-            test["product"].astype("category")
-        )["product"].values
-        
+        train = train.copy()
+        test = test.copy()
+        train, test = self.woe_encode(train, test, 'shopper')
+        train, test = self.woe_encode(train, test, 'product')
         return train, test
         
 
