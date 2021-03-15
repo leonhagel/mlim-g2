@@ -61,10 +61,10 @@ def parquet_caching(parquet_name, callback, path='../cache/'):
     name = f'{parquet_name}.parquet.gzip'
     dataframe = None
     try:
-        print(f'Read {name} from {path}...')
+        print(f'Read {name} from cache...')
         dataframe = pd.read_parquet(f'{path}{name}')
     except FileNotFoundError: 
-        print(f'{name} was not found in {path}')
+        print(f'{name} was not found in cache.')
         print(f'Executing callback function "{callback.__name__}" to create {name}')
         dataframe = callback()
         dataframe.to_parquet(f'{path}{name}', compression='gzip')
