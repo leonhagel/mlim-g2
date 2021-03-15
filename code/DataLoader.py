@@ -12,12 +12,11 @@ class DataLoader:
 
     def get_dataset(self):
         '''
-        If available, read dataset.parquet.gzip from disk
-        Ohterwise create dataset and save it to disk
+        If available, read dataset.parquet.gzip from cache
+        Ohterwise create dataset and write it to cache
         '''
-        dataset = Utils.parquet_loader(
+        dataset = Utils.parquet_caching(
             parquet_name = "dataset",
-            path = self.config['data']['path'],
             callback = self.create_dataset
         )
         self.dataset = dataset

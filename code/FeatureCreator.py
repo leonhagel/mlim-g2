@@ -12,12 +12,11 @@ class FeatureCreator:
         
     def get_model_data(self):
         '''
-        If available, read model_data.parquet.gzip from disk
-        Ohterwise create model_data and save it to disk
+        If available, read model_data.parquet.gzip from cache
+        Ohterwise create model_data and write it to cache
         '''
-        model_data = Utils.parquet_loader(
+        model_data = Utils.parquet_caching(
             parquet_name = "model_data",
-            path = self.config['data']['path'],
             callback = self.create_features
         )
         self.model_data = model_data
