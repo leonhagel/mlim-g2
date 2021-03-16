@@ -144,16 +144,24 @@ class DataLoader:
     
     
     def get_coupon_rates(self, baskets_coupons):
-        week_limit = self.config['model']['test_week'] - self.config['model']['train_window']
+        '''
+        Calculate costumer and product specific redemption likeliehoods
+        and calculate if a costumer buys a product only because of coupons
+        uses all historic data up to test week
+        '''
+        week_limit = self.config['model']['test_week']
         baskets_coupons = baskets_coupons[baskets_coupons['week'] < week_limit]
         coupons = baskets_coupons[baskets_coupons['discount'] > 0].copy()
         
+        # how likely is a product specific coupon to be redeemed
         redemption_rate = coupons.groupby(['product'])['purchased'].mean()
         redemption_rate = redemption_rate.rename('redemption_rate')
 
+        # how likely is a specific costumer to redeem a coupon for a specific product
         costumer_redemption_rate = coupons.groupby(['shopper', 'product'])['purchased'].mean()
         costumer_redemption_rate = costumer_redemption_rate.rename('costumer_redemption_rate')
 
+        # did the costumer buy the product only because of the discount
         buy_all = baskets_coupons.groupby(['shopper', 'product']).size()
         discount = coupons.groupby(['shopper', 'product']).size()
         discount_buy = discount / buy_all
@@ -164,14 +172,16 @@ class DataLoader:
         
         
     def get_elasticities(self, name):
+        '''
+        Calculate week and product specific price elasticities using all shoppers
+        '''
         elasticities = pd.DataFrame()
         total_basket_count = 100000
         end_week = self.config['model']['test_week']
         start_week = end_week - self.config['model']['train_window']
         
-        inputs = {name: self.read(name) for name in self.expected_input}
-        baskets = (inputs['baskets'])
-        coupons = (inputs['coupons'])  
+        baskets = self.inputs['baskets']
+        coupons = self.inputs['coupons']
         
         baskets = baskets[baskets['week'] >= start_week -1] 
         baskets = baskets[baskets['week'] <= end_week]
@@ -202,5 +212,5 @@ class DataLoader:
                 elast.append((discount_buy_rate - reg_price_buy_rate) / (0.3 * reg_price_buy_rate))
             temp['elast'] = elast
             elasticities = elasticities.append(temp, ignore_index = True)
-
+        del baskets, coupons, baskets_coupons
         return elasticities
