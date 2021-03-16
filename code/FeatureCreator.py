@@ -28,7 +28,7 @@ class FeatureCreator:
         dataset = self.create_product_cat(dataset)
         dataset = self.create_substitue_discount(dataset)
         dataset = self.create_cat_cluster(dataset)
-        dataset = self.create_cluster_discount(dataset)
+        #dataset = self.create_cluster_discount(dataset)
         dataset = self.dummy_encode_clusters(dataset)
         dataset = self.create_time_features(dataset)
         return dataset
