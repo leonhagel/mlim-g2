@@ -1,5 +1,6 @@
 import itertools
 import pandas as pd
+import numpy as np
 import Utils
 
 
@@ -28,10 +29,19 @@ class DataLoader:
         data = self.clean(baskets_coupons)      
         week_hist = self.get_week_hist(data)
         last_week_mode_price = self.get_last_week_mode_price(data)
+        elasticities = self.get_elasticities(['baskets', 'coupons'])
+        redemption_rate, costumer_redemption_rate, discount_buy = self.get_coupon_rates(baskets_coupons)
+        
         dataset = self.build_dataset_from_config(data)
         dataset = dataset.merge(week_hist, how="left")
+        dataset = dataset.merge(last_week_mode_price, how="left") #on=['product', 'week']
+        dataset = dataset.merge(elasticities, how="left")
+        dataset = dataset.merge(redemption_rate, how="left", on='product')
+        dataset = dataset.merge(costumer_redemption_rate, how="left", on=['shopper', 'product'])
+        dataset = dataset.merge(discount_buy, how="left", on=['shopper', 'product'])
         dataset = dataset.merge(last_week_mode_price, how="left")
         dataset = self.impute_missing_prices(dataset)
+        
         return dataset
         
 
@@ -94,9 +104,11 @@ class DataLoader:
         get_mode = lambda x: pd.Series.mode(x)[0]
 
         price_data = dataset.groupby(['product', 'week']).agg(
-            last_week_mode_price=('price', get_mode)
+            week_mode_price=('price', get_mode)
         ).reset_index()
-        price_data['week'] = price_data['week'] + 1
+
+        price_data['last_week_mode_price'] = price_data.groupby('product')['week_mode_price'].shift()
+        price_data = price_data.drop(columns=['week_mode_price'])
         return price_data
     
  
@@ -128,3 +140,77 @@ class DataLoader:
         dataset["purchased"].fillna(0, inplace=True)
         dataset["discount"].fillna(0, inplace=True)
         return dataset
+    
+    
+    
+    def get_coupon_rates(self, baskets_coupons):
+        '''
+        Calculate costumer and product specific redemption likeliehoods
+        and calculate if a costumer buys a product only because of coupons
+        uses all historic data up to test week
+        '''
+        week_limit = self.config['model']['test_week']
+        baskets_coupons = baskets_coupons[baskets_coupons['week'] < week_limit]
+        coupons = baskets_coupons[baskets_coupons['discount'] > 0].copy()
+        
+        # how likely is a product specific coupon to be redeemed
+        redemption_rate = coupons.groupby(['product'])['purchased'].mean()
+        redemption_rate = redemption_rate.rename('redemption_rate')
+
+        # how likely is a specific costumer to redeem a coupon for a specific product
+        costumer_redemption_rate = coupons.groupby(['shopper', 'product'])['purchased'].mean()
+        costumer_redemption_rate = costumer_redemption_rate.rename('costumer_redemption_rate')
+
+        # did the costumer buy the product only because of the discount
+        buy_all = baskets_coupons.groupby(['shopper', 'product']).size()
+        discount = coupons.groupby(['shopper', 'product']).size()
+        discount_buy = discount / buy_all
+        discount_buy = discount_buy.fillna(0)
+        discount_buy = discount_buy.rename('discount_buy')
+        
+        return redemption_rate, costumer_redemption_rate, discount_buy
+        
+        
+    def get_elasticities(self, name):
+        '''
+        Calculate week and product specific price elasticities using all shoppers
+        '''
+        elasticities = pd.DataFrame()
+        total_basket_count = 100000
+        end_week = self.config['model']['test_week']
+        start_week = end_week - self.config['model']['train_window']
+        
+        baskets = self.inputs['baskets']
+        coupons = self.inputs['coupons']
+        
+        baskets = baskets[baskets['week'] >= start_week -1] 
+        baskets = baskets[baskets['week'] <= end_week]
+        coupons = coupons[coupons['week'] >= start_week -1] 
+        coupons = coupons[coupons['week'] <= end_week]
+        baskets_coupons = baskets.merge(coupons, how = "outer")
+
+        baskets_coupons['discount'] = baskets_coupons['discount'].fillna(0)
+        baskets_coupons['price'] = baskets_coupons['price'].fillna(0)
+        
+        for i in baskets_coupons['week'].unique():
+            basket_week = baskets_coupons[baskets_coupons['week'] == i].copy()
+            elast = []
+            temp = pd.DataFrame()
+            temp['product'] = np.arange(250)
+            temp['week'] = i + 1
+
+            for i in range(250):
+                reg_price = basket_week[basket_week['product'] == i]
+                reg_price_buy = len(reg_price[reg_price['discount'] == 0])
+                all_discounts_offers = len(reg_price[reg_price['discount'] > 0])
+                reg_price_offer = total_basket_count - all_discounts_offers
+                reg_price_buy_rate = reg_price_buy / reg_price_offer
+                discount_30 = reg_price[reg_price['discount'] == 30]
+                discount_30_offer = len(discount_30)
+                discount_30_buy = (discount_30['price'] != 0).sum()
+                discount_buy_rate = discount_30_buy / discount_30_offer
+                elast.append((discount_buy_rate - reg_price_buy_rate) / (0.3 * reg_price_buy_rate))
+            temp['elast'] = elast
+            elasticities = elasticities.append(temp, ignore_index = True)
+        del baskets, coupons, baskets_coupons
+        return elasticities
