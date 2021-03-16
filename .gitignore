@@ -143,3 +143,5 @@ cache/
 
 # code: ToDo clean up
 code/prices_20210224_price-map.ipynb
+export/prices.parquet
+export/product_histories.parquet
