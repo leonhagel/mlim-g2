@@ -28,7 +28,6 @@ class DataLoader:
         data = self.clean(baskets_coupons)      
         week_hist = self.get_week_hist(data)
         last_week_mode_price = self.get_last_week_mode_price(data)
-
         dataset = self.build_dataset_from_config(data)
         dataset = dataset.merge(week_hist, how="left")
         dataset = dataset.merge(last_week_mode_price, how="left")
@@ -95,11 +94,9 @@ class DataLoader:
         get_mode = lambda x: pd.Series.mode(x)[0]
 
         price_data = dataset.groupby(['product', 'week']).agg(
-            week_mode_price=('price', get_mode)
+            last_week_mode_price=('price', get_mode)
         ).reset_index()
-
-        price_data['last_week_mode_price'] = price_data.groupby('product')['week_mode_price'].shift()
-        price_data = price_data.drop(columns=['week_mode_price'])
+        price_data['week'] = price_data['week'] + 1
         return price_data
     
  
