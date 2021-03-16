@@ -139,7 +139,7 @@ dmypy.json
 
 # data and export directories
 data/
-export/
+cache/
 
 # code: ToDo clean up
 code/prices_20210224_price-map.ipynb
