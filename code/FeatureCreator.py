@@ -152,3 +152,24 @@ class FeatureCreator:
     # @BENEDIKT
     # feature: user features, e.g. user-coupon redemption rate
     # ------------------------------------------------------------------------------
+    def get_customer_redemption_rate(self, dataset):
+        
+        def create_customer_redemption_rate(row):
+            discount_redeemed = row['discount_redeemed_weeks'] 
+            discount_received = row['discount_received_weeks'] 
+            week = row['week']
+    
+            try:
+                redeemed = [redeem_week for redeem_week in discount_redeemed if redeem_week < week]
+                received = [receive_week for receive_week in discount_received if receive_week < week]
+                n_redeemed = len(redeemed)
+                n_received = len(received)
+                customer_redemption_rate = n_redeemed / n_received
+            except TypeError: # customer never received or redeemed a coupon
+                customer_redemption_rate = 0
+            except ZeroDivisionError: # customer never received or redeemed a coupon prior to the current week
+                customer_redemption_rate = 0
+            return customer_redemption_rate
+        
+        dataset['customer_redemption_rate'] = dataset.apply(create_customer_redemption_rate, axis=1)
+        return dataset

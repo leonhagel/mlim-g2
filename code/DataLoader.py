@@ -23,25 +23,26 @@ class DataLoader:
         self.dataset = dataset
         return dataset
         
-
+        
     def create_dataset(self):
         baskets_coupons = self.merge_baskets_coupons()
         data = self.clean(baskets_coupons)      
         week_hist = self.get_week_hist(data)
+        discount_received_weeks = self.get_discount_received_weeks(data)
+        discount_redeemed_weeks = self.get_discount_redeemed_weeks(data)
         last_week_mode_price = self.get_last_week_mode_price(data)
-        elasticities = self.get_elasticities(['baskets', 'coupons'])
-        redemption_rate, costumer_redemption_rate, discount_buy = self.get_coupon_rates(baskets_coupons)
-        
         dataset = self.build_dataset_from_config(data)
         dataset = dataset.merge(week_hist, how="left")
-        dataset = dataset.merge(last_week_mode_price, how="left") #on=['product', 'week']
-        dataset = dataset.merge(elasticities, how="left")
-        dataset = dataset.merge(redemption_rate, how="left", on='product')
-        dataset = dataset.merge(costumer_redemption_rate, how="left", on=['shopper', 'product'])
-        dataset = dataset.merge(discount_buy, how="left", on=['shopper', 'product'])
-        #dataset = dataset.merge(last_week_mode_price, how="left")
+        dataset = dataset.merge(discount_received_weeks, how="left")
+        dataset = dataset.merge(discount_redeemed_weeks, how="left")
+        dataset = dataset.merge(last_week_mode_price, how="left")
         dataset = self.impute_missing_prices(dataset)
-        
+        #elasticities = self.get_elasticities(['baskets', 'coupons'])
+        #redemption_rate, costumer_redemption_rate, discount_buy = self.get_coupon_rates(baskets_coupons)
+        #dataset = dataset.merge(elasticities, how="left")
+        #dataset = dataset.merge(redemption_rate, how="left", on='product')
+        #dataset = dataset.merge(costumer_redemption_rate, how="left", on=['shopper', 'product'])
+        #dataset = dataset.merge(discount_buy, how="left", on=['shopper', 'product'])
         return dataset
         
 
@@ -95,6 +96,26 @@ class DataLoader:
         week_hist = purchases.groupby(['product', 'shopper'])['week'].apply(list).reset_index(name='week_hist')
         return week_hist
  
+
+    def get_discount_received_weeks(self, data):
+        '''
+        Helper to derive coupon related features later on
+        computes list of coupon received weeks for all product-shopper combinations
+        '''
+        discount_received = data[data["discount"] != 0]
+        discount_received_weeks = discount_received.groupby(['product', 'shopper'])['week'].apply(list).reset_index(name='discount_received_weeks')
+        return discount_received_weeks
+
+    
+    def get_discount_redeemed_weeks(self, data):
+        '''
+        Helper to derive coupon related features later on
+        computes list of coupon redemmed weeks for all product-shopper combinations
+        '''
+        discount_redeemed = data[(data["purchased"] == 1) & (data["discount"] != 0)]
+        discount_redeemed_weeks = discount_redeemed.groupby(['product', 'shopper'])['week'].apply(list).reset_index(name='discount_redeemed_weeks')
+        return discount_redeemed_weeks
+ 
     
     def get_last_week_mode_price(self, dataset):
         '''
@@ -141,19 +162,21 @@ class DataLoader:
     
    ## benedikt  
     
-    def get_coupon_rates(self, baskets_coupons):
+    def get_coupon_rates(self, data):
         '''
         Calculate costumer and product specific redemption likeliehoods
         and calculate if a costumer buys a product only because of coupons
-        uses all historic data up to test week
+        uses all historic data prior to train window
         '''
-        #week_limit = self.config['model']['test_week'] !!!!!potential leakage --> removing train window not the best approach --> need to calculate for each week
-        week_limit = self.config['model']['test_week'] - self.config['model']['train_window']
-        baskets_coupons = baskets_coupons[baskets_coupons['week'] < week_limit]
-        coupons = baskets_coupons[baskets_coupons['discount'] > 0].copy()
+        test_week = self.config['model']['test_week']
+        train_window = self.config['model']['train_window']
+        week_limit = test_week - train_window
+        
+        data = data[data['week'] < week_limit]
+        coupons = data[data['discount'] > 0].copy()
         
         # how likely is a product specific coupon to be redeemed
-        redemption_rate = coupons.groupby(['product'])['purchased'].mean()
+        redemption_rate = coupons.groupby('product')['purchased'].mean()
         redemption_rate = redemption_rate.rename('redemption_rate')
 
         # how likely is a specific costumer to redeem a coupon for a specific product
@@ -161,7 +184,7 @@ class DataLoader:
         costumer_redemption_rate = costumer_redemption_rate.rename('costumer_redemption_rate')
 
         # did the costumer buy the product only because of the discount
-        buy_all = baskets_coupons.groupby(['shopper', 'product']).size()
+        buy_all = data.groupby(['shopper', 'product']).size()
         discount = coupons.groupby(['shopper', 'product']).size()
         discount_buy = discount / buy_all
         discount_buy = discount_buy.fillna(0)
