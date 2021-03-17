@@ -145,3 +145,6 @@ cache/
 code/prices_20210224_price-map.ipynb
 export/prices.parquet
 export/product_histories.parquet
+.freeze.txt.swp
+.freeze-before.txt.swp
+code/.FeatureCreator.py.swp

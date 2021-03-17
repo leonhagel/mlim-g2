@@ -13,20 +13,20 @@ help:
 	@echo "Check the Makefile for details"
 
 build:
-	python -m venv $(VIRTUALENV); \
+	virtualenv  $(VIRTUALENV); \
 	source $(VIRTUALENV)/bin/activate; \
-	python -m pip install --upgrade pip; \
-	python -m pip install -r requirements.txt;
+	python3 -m pip install --upgrade pip; \
+	python3 -m pip install -r requirements.txt;
 
 build-lab: build
 	source $(VIRTUALENV)/bin/activate; \
 	jupyter labextension install jupyterlab-plotly@4.14.1; \
 	jupyter serverextension enable --py jupyterlab_code_formatter
-	python -m ipykernel install --user --name=$(NAME);
+	python3 -m ipykernel install --user --name=$(NAME);
 
 freeze:
 	source $(VIRTUALENV)/bin/activate; \
-	pip freeze
+	pip freeze > freeze.txt
 
 clean:
 	find . -name '*.pyc' -delete
@@ -35,10 +35,8 @@ clean:
 
 distclean: clean
 	rm -rf $(VIRTUALENV)
+	yes | jupyter kernelspec uninstall $(NAME)
 
 run:
 	source $(VIRTUALENV)/bin/activate; \
 	jupyter lab --port=$(PORT)
-
-clone:
-	git clone https://github.com/sbstn-gbl/mlim.git xx-lecture-github;
