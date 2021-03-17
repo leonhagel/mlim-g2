@@ -13,7 +13,7 @@ class FeatureCreator:
     def get_model_data(self):
         '''
         If available, read model_data.parquet.gzip from cache
-        Ohterwise create model_data and write it to cache
+        Otherwise create model_data and write it to cache
         '''
         model_data = Utils.parquet_caching(
             parquet_name = "model_data",
@@ -82,7 +82,7 @@ class FeatureCreator:
         dataset = dataset.drop(columns=["product_cat"])
         return dataset
 
-    
+    # is dropped, remove
     def create_cluster_discount(self, dataset):
         '''
         Calculate the sum of discounts a shopper was given for cluster products in the same week
