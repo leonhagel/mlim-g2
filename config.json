@@ -1,6 +1,6 @@
 {
-    "data": {
-        "path": "../data/",
+    "input": {
+        "path": "../input/",
         "files": {
             "baskets": "baskets.parquet",
             "coupons": "coupons.parquet",
@@ -15,5 +15,8 @@
         "trend_windows": [1, 3, 5],
         "n_coupons": 5,
         "discounts": [0.15, 0.2, 0.25, 0.3]
+    },
+    "output": {
+        "path": "../output/"
     }
 }

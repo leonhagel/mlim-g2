@@ -37,7 +37,7 @@ class DataLoader:
         dataset = dataset.merge(discount_redeemed_weeks, how="left")
         dataset = dataset.merge(last_week_mode_price, how="left")
         dataset = self.impute_missing_prices(dataset)
-        #elasticities = self.get_elasticities(['baskets', 'coupons'])
+        elasticities = self.get_elasticities()
         #redemption_rate, costumer_redemption_rate, discount_buy = self.get_coupon_rates(baskets_coupons)
         #dataset = dataset.merge(elasticities, how="left")
         #dataset = dataset.merge(redemption_rate, how="left", on='product')
@@ -68,9 +68,8 @@ class DataLoader:
         '''
         Read memory reduced parquet files
         '''
-        data_config = self.config['data']
-        path = data_config['path']
-        filename = data_config['files'][name]
+        path = self.config['input']['path']
+        filename = self.config['input']['files'][name]
         data = pd.read_parquet(path + filename)
         data_compressed = Utils.reduce_mem_usage(filename, data)
         return data_compressed
@@ -193,7 +192,7 @@ class DataLoader:
         return redemption_rate, costumer_redemption_rate, discount_buy
         
         
-    def get_elasticities(self, name):
+    def get_elasticities(self):
         '''
         Calculate week and product specific price elasticities using all shoppers
         '''

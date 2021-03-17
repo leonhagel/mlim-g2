@@ -137,9 +137,11 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# data and export directories
-data/
+# input, output
+input/
+output/
 cache/
+
 
 # code: ToDo clean up
 code/prices_20210224_price-map.ipynb
