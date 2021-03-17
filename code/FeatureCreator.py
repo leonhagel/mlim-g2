@@ -79,7 +79,7 @@ class FeatureCreator:
         cat_cluster_labels = [1, 1, 2, 2, 0, 1, 0, 2, 2, 2, 0, 2, 2, 2, 2, 1, 2, 1, 2, 0, 2, 1, 2, 1, 2]
         cat_to_cluster_mapping = pd.DataFrame({"cat_cluster": cat_cluster_labels})
         dataset = dataset.merge(cat_to_cluster_mapping, left_on='product_cat', right_index=True)
-        dataset = dataset.drop(columns=["product_cat"])
+        #dataset = dataset.drop(columns=["product_cat"])
         return dataset
 
     

@@ -39,7 +39,7 @@ class DataLoader:
         dataset = dataset.merge(redemption_rate, how="left", on='product')
         dataset = dataset.merge(costumer_redemption_rate, how="left", on=['shopper', 'product'])
         dataset = dataset.merge(discount_buy, how="left", on=['shopper', 'product'])
-        dataset = dataset.merge(last_week_mode_price, how="left")
+        #dataset = dataset.merge(last_week_mode_price, how="left")
         dataset = self.impute_missing_prices(dataset)
         
         return dataset
@@ -104,11 +104,9 @@ class DataLoader:
         get_mode = lambda x: pd.Series.mode(x)[0]
 
         price_data = dataset.groupby(['product', 'week']).agg(
-            week_mode_price=('price', get_mode)
+            last_week_mode_price=('price', get_mode)
         ).reset_index()
-
-        price_data['last_week_mode_price'] = price_data.groupby('product')['week_mode_price'].shift()
-        price_data = price_data.drop(columns=['week_mode_price'])
+        price_data['week'] = price_data['week'] + 1
         return price_data
     
  
@@ -141,7 +139,7 @@ class DataLoader:
         dataset["discount"].fillna(0, inplace=True)
         return dataset
     
-    
+   ## benedikt  
     
     def get_coupon_rates(self, baskets_coupons):
         '''
@@ -149,7 +147,8 @@ class DataLoader:
         and calculate if a costumer buys a product only because of coupons
         uses all historic data up to test week
         '''
-        week_limit = self.config['model']['test_week']
+        #week_limit = self.config['model']['test_week'] !!!!!potential leakage --> removing train window not the best approach --> need to calculate for each week
+        week_limit = self.config['model']['test_week'] - self.config['model']['train_window']
         baskets_coupons = baskets_coupons[baskets_coupons['week'] < week_limit]
         coupons = baskets_coupons[baskets_coupons['discount'] > 0].copy()
         

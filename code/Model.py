@@ -25,7 +25,7 @@ class Model:
         train, test = self.woe_encode(train, test, 'shopper')
         train, test = self.woe_encode(train, test, 'product')
         
-        non_features = ["shopper", "week", "product", "purchased"]
+        non_features = ["shopper", "week", "product", "purchased", "product_cat"]
         features = [col for col in train.columns if col not in non_features]
 
         X_train = train[features]

@@ -11,9 +11,9 @@ class CouponCreator():
         self.n_coupons = None
         self.top_coupons = None
 
-    def run(self, discounts, X_template, n_coupons=5):
+    def get_top_coupons(self, discounts, X_template, n_coupons=5):
         revenue = self.get_revenue(X_template, discounts)
-        top_coupons = self.get_top_coupons(revenue, n_coupons=n_coupons)
+        top_coupons = self.create_top_coupons(revenue, n_coupons=n_coupons)
         return top_coupons
         
     # expected revenue
@@ -23,7 +23,7 @@ class CouponCreator():
         discount_values = [0] + discounts
         X = self._add_discounts(X_template, discount_values)
         # calculating the expected revenue
-        revenue = self.model.data.loc[X.index, ['week', 'shopper', 'product', 'price']]
+        revenue = self.model.data.loc[X.index, ['week', 'shopper', 'product', 'price', 'product_cat']]
         revenue['discount'] = X['discount']
         revenue["probabilities"] = self.model.predict(X)
         revenue["exp_revenue"] = revenue["probabilities"] * revenue["price"] * (1 - revenue["discount"])
@@ -54,23 +54,24 @@ class CouponCreator():
     
     # extracting top coupons
     # ----------------------------------------------------------------------------------
-    def get_top_coupons(self, revenue, n_coupons=5):
+    def create_top_coupons(self, revenue, n_coupons=5):
         self.n_coupons = n_coupons
         # calculating the top coupons
         coupons = {}
         for shopper in range(250):
-            coupons[shopper] = self._get_top_coupons(revenue, shopper, n_coupons)    
+            coupons[shopper] = self._create_top_coupons(revenue, shopper, n_coupons)    
         # creating the final output
         output = list(coupons.values())[0]
         output["coupon"] = range(n_coupons)
         for coupon in list(coupons.values())[1:]:
             coupon["coupon"] = range(n_coupons)
             output = output.append(coupon)
-        output = output[["shopper", "week", "coupon", "product", "discount"]]
+        output = output[["shopper", "week", "coupon", "product", "discount", 'product_cat']] # drop product cat for final output
+        #output = output[["shopper", "week", "coupon", "product", "discount"]]
         self.top_coupons = output
         return output
 
-    def _get_top_coupons(self, revenue, shopper, n_coupons):
+    def _create_top_coupons(self, revenue, shopper, n_coupons):
         # reduce data to the shopper in question
         revenue = (
             revenue.loc[revenue["shopper"] == shopper, :]
@@ -83,8 +84,12 @@ class CouponCreator():
         i = 1
         while output.shape[0] < n_coupons:
             row = revenue.iloc[i]
-            if np.logical_not(np.isin(row["product"], output["product"])):
-                output = output.append(row)
+            # do not add a coupon if it would be a second coupon for a product
+            condition1 = np.logical_not(np.isin(row["product"], output["product"]))
+            # do not add a coupon if it would be a second coupon for a product_cat (i.e. two substitutes receive discounts)
+            condition2 = np.logical_not(np.isin(row["product_cat"], output["product_cat"]))
+            if condition1 and condition2:
+                output = output.append(row) 
             i += 1
         return output
     
