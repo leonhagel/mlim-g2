@@ -66,8 +66,7 @@ class CouponCreator():
         for coupon in list(coupons.values())[1:]:
             coupon["coupon"] = range(n_coupons)
             output = output.append(coupon)
-        output = output[["shopper", "week", "coupon", "product", "discount", 'product_cat']] # drop product cat for final output
-        #output = output[["shopper", "week", "coupon", "product", "discount"]]
+        output = output[["shopper", "week", "coupon", "product", "discount"]]
         self.top_coupons = output
         return output
 

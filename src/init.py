@@ -1,19 +1,25 @@
+import os
 import Utils
 from DataLoader import *
 from FeatureCreator import *
 from Model import *
 
+# preparing the environment
+os.chdir('./src')
+
+# loading the config 
 config = Utils.read_json('../config.json')
+
 
 # data loading
 dataloader = DataLoader(config)
 dataset = dataloader.get_dataset()
-
+print(dataset)
 
 # feature creation
 feature_creator = FeatureCreator(dataset, config)
 model_data = feature_creator.get_model_data()
-
+print(model_data)
 
 # train-test split and model fitting
 model = Model(model_data)
