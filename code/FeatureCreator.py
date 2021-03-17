@@ -31,6 +31,7 @@ class FeatureCreator:
         #dataset = self.create_cluster_discount(dataset)
         dataset = self.dummy_encode_clusters(dataset)
         dataset = self.create_time_features(dataset)
+        dataset = self.get_coupon_features(dataset)
         return dataset
     
     
@@ -145,16 +146,16 @@ class FeatureCreator:
         dataset["product_freq"] = dataset.apply(lambda row: get_trend(row, row['week']), axis=1)
         
         # we drop week_hist variable, which was a helper to derive the time features
-        dataset = dataset.drop(columns=['week_hist'])
+        #dataset = dataset.drop(columns=['week_hist'])
         return dataset
     
     
     # @BENEDIKT
     # feature: user features, e.g. user-coupon redemption rate
     # ------------------------------------------------------------------------------
-    def get_customer_redemption_rate(self, dataset):
+    def get_coupon_features(self, dataset):
         
-        def create_customer_redemption_rate(row):
+        def create_shopper_product_redemption_rate(row):
             discount_redeemed = row['discount_redeemed_weeks'] 
             discount_received = row['discount_received_weeks'] 
             week = row['week']
@@ -164,12 +165,46 @@ class FeatureCreator:
                 received = [receive_week for receive_week in discount_received if receive_week < week]
                 n_redeemed = len(redeemed)
                 n_received = len(received)
-                customer_redemption_rate = n_redeemed / n_received
-            except TypeError: # customer never received or redeemed a coupon
-                customer_redemption_rate = 0
-            except ZeroDivisionError: # customer never received or redeemed a coupon prior to the current week
-                customer_redemption_rate = 0
-            return customer_redemption_rate
+                shopper_redemption_rate = n_redeemed / n_received
+            except TypeError: # shopper never received or redeemed a coupon
+                shopper_redemption_rate = 0
+            except ZeroDivisionError: # shopper never received or redeemed a coupon prior to the current week
+                shopper_redemption_rate = 0
+            return shopper_redemption_rate
         
-        dataset['customer_redemption_rate'] = dataset.apply(create_customer_redemption_rate, axis=1)
+        def create_discount_buy(row): 
+            discount_received = row['discount_received_weeks']
+            product_purchased = row['week_hist']
+            week = row['week']
+    
+            try:
+                received = [receive_week for receive_week in discount_received if receive_week < week]
+                purchased = [purchase_week for purchase_week in product_purchased if purchase_week < week]
+                n_received = len(received)
+                n_purchased = len(purchased)
+                discount_buy = n_received / n_purchased
+            except TypeError: # shopper never received a coupon or purchased the product
+                discount_buy = 0
+            except ZeroDivisionError: # shopper never received a coupon or purchased the product prior to the current week
+                discount_buy = 0
+            return discount_buy
+        
+        data = dataset.copy()
+        data['discount_redeemed_weeks'] = data['discount_redeemed_weeks'].apply(lambda l: l if isinstance(l, list) else [])
+        data['discount_received_weeks'] = data['discount_received_weeks'].apply(lambda l: l if isinstance(l, list) else [])
+        
+        shopper_redemption = data.groupby('shopper')[['discount_received_weeks', 'discount_redeemed_weeks']].sum().applymap(len)
+        shopper_redemption = shopper_redemption['discount_redeemed_weeks'] / shopper_redemption['discount_received_weeks']
+        shopper_redemption.name = 'shopper_redemption_rate'
+        
+        product_redemption = data.groupby('product')[['discount_received_weeks', 'discount_redeemed_weeks']].sum().applymap(len)
+        product_redemption = product_redemption['discount_redeemed_weeks'] / product_redemption['discount_received_weeks']
+        product_redemption.name = 'product_redemption_rate'
+        
+        dataset['shopper_product_redemption_rate'] = dataset.apply(create_shopper_product_redemption_rate, axis=1)
+        dataset['discount_buy'] = dataset.apply(create_discount_buy, axis=1)
+        dataset = dataset.merge(shopper_redemption, left_on='shopper', right_index=True)
+        dataset = dataset.merge(product_redemption, left_on='product', right_index=True)
+        
+        dataset = dataset.drop(columns=['week_hist', 'discount_received_weeks', 'discount_redeemed_weeks'])
         return dataset
