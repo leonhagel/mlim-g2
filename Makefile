@@ -36,7 +36,7 @@ freeze:
 
 clean-cache:
 	rm -rf ./cache; \
-	mkdir cashe; 
+	mkdir cache; 
 
 clean: clean-cache
 	find . -name '*.pyc' -delete
