@@ -31,6 +31,7 @@ class FeatureCreator:
         dataset = self.dummy_encode_clusters(dataset)
         dataset = self.create_time_features(dataset)
         dataset = self.get_discount_features(dataset)
+        dataset = self.get_elasticities(dataset)
         return dataset
     
     
@@ -131,9 +132,9 @@ class FeatureCreator:
     
     
     def get_discount_features(self, dataset):
-            '''
-            Calculate discount
-            '''
+        '''
+        Calculate discount features
+        '''
         def create_shopper_product_redemption_rate(row):
             discount_redeemed = row['discount_redeemed_weeks'] 
             discount_received = row['discount_received_weeks'] 
@@ -187,4 +188,36 @@ class FeatureCreator:
         
         dataset = dataset.drop(columns=['week_hist', 'discount_received_weeks', 'discount_redeemed_weeks'])
         dataset = dataset.sort_index()
+        return dataset
+
+    
+    def get_elasticities(self, dataset):
+        test_week = self.config['model']['test_week']
+        n_products = self.config['model']['n_products']
+
+        product_elasticities = pd.DataFrame({ 'product' : range(n_products)})
+        elast = []
+
+        train = dataset[dataset['week'] < test_week].copy()
+        for i in range(n_products):
+            product = train[train['product'] == i]
+
+            reg_price_all= product[product['discount'] == 0]
+            discount_30_all = product[product['discount'] == 0.3]
+
+            reg_price_offer = len(reg_price_all)
+            discount_30_offer = len(discount_30_all)
+
+            reg_price_buy = len(reg_price_all[reg_price_all['purchased'] == 1])
+            discount_30_buy = len(discount_30_all[discount_30_all['purchased'] == 1])
+
+            reg_price_buy_rate = reg_price_buy / reg_price_offer
+            discount_buy_rate = discount_30_buy / discount_30_offer
+
+            elast.append((discount_buy_rate - reg_price_buy_rate) / (0.3 * reg_price_buy_rate))
+
+
+        product_elasticities['elasticities'] = elast
+        dataset = dataset.merge(product_elasticities, how='left')
+
         return dataset
