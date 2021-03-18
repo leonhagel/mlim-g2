@@ -28,10 +28,9 @@ class FeatureCreator:
         dataset = self.create_product_cat(dataset)
         dataset = self.create_substitue_discount(dataset)
         dataset = self.create_cat_cluster(dataset)
-        #dataset = self.create_cluster_discount(dataset)
         dataset = self.dummy_encode_clusters(dataset)
         dataset = self.create_time_features(dataset)
-        dataset = self.get_coupon_features(dataset)
+        dataset = self.get_discount_features(dataset)
         return dataset
     
     
@@ -80,22 +79,6 @@ class FeatureCreator:
         cat_cluster_labels = [1, 1, 2, 2, 0, 1, 0, 2, 2, 2, 0, 2, 2, 2, 2, 1, 2, 1, 2, 0, 2, 1, 2, 1, 2]
         cat_to_cluster_mapping = pd.DataFrame({"cat_cluster": cat_cluster_labels})
         dataset = dataset.merge(cat_to_cluster_mapping, left_on='product_cat', right_index=True)
-        #dataset = dataset.drop(columns=["product_cat"])
-        return dataset
-
-    # is dropped, remove
-    def create_cluster_discount(self, dataset):
-        '''
-        Calculate the sum of discounts a shopper was given for cluster products in the same week
-        EDA shows that in case of cluster 0 this would be complement discounts (e.g. Chips & Coca-Cola)
-        '''
-        partition = ['week', 'shopper', 'cat_cluster']
-        dataset["cluster_discount_sum"] = dataset.groupby(partition)["discount"].transform('sum')
-        
-        calc_cluster_discount = lambda row: row['cluster_discount_sum'] - row['discount']
-
-        dataset['cluster_discount'] = dataset.apply(calc_cluster_discount, axis=1)
-        dataset = dataset.drop(columns=["cluster_discount_sum"])
         return dataset
 
     
@@ -144,17 +127,13 @@ class FeatureCreator:
             dataset["trend_" + str(window)] = dataset.apply(get_trend, args=([window]), axis=1)
         
         dataset["product_freq"] = dataset.apply(lambda row: get_trend(row, row['week']), axis=1)
-        
-        # we drop week_hist variable, which was a helper to derive the time features
-        #dataset = dataset.drop(columns=['week_hist'])
         return dataset
     
     
-    # @BENEDIKT
-    # feature: user features, e.g. user-coupon redemption rate
-    # ------------------------------------------------------------------------------
-    def get_coupon_features(self, dataset):
-        
+    def get_discount_features(self, dataset):
+            '''
+            Calculate discount
+            '''
         def create_shopper_product_redemption_rate(row):
             discount_redeemed = row['discount_redeemed_weeks'] 
             discount_received = row['discount_received_weeks'] 

@@ -39,6 +39,8 @@ class Model:
     def woe_encode(self, train, test, feature):
         '''
         Weight of Evidence Encoding (WOE)
+        FYI warning can be ignored, refers to this issue:
+        https://github.com/scikit-learn-contrib/category_encoders/issues/281
         '''
         train = train.copy()
         test = test.copy()
