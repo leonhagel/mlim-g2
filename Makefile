@@ -51,4 +51,4 @@ create-plots:
 
 create:
 	source $(VIRTUALENV)/bin/activate; \
-	python src/init.py
+	python src/create.py

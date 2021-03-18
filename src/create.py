@@ -4,6 +4,7 @@ from DataLoader import DataLoader
 from FeatureCreator import FeatureCreator
 from Model import Model
 from CouponCreator import CouponCreator
+from Evaluation import Evaluation
 
 # PREPARING THE ENVIRONMENT AND LOADING THE CONFIG
 os.chdir('./src')
@@ -33,15 +34,15 @@ print(f'log loss scores on the train data: \t{log_loss_score}')
 
 
 # CREATING THE FINAL OUTPUT
-coupon_creator = CouponCreator(model)
-X_template = X_test.copy()
-X_template['discount'] = None
-X_template['substitue_discount'] = 0
-discounts = config['model']['discounts']
-n_coupons = config['model']['n_coupons']
-coupons = coupon_creator.get_top_coupons(discounts, X_template, n_coupons=n_coupons)
-print(coupons)
+coupon_creator = CouponCreator(model, config)
+optimal_coupons = coupon_creator.get_top_coupons()
+
+
+# EVALUATING THE RESULTS AGAINST RANDOM AND NO COUPONS
+evaluation = Evaluation(model, config, optimal_coupons)
+evaluation.evaluate()
+print(optimal_coupons)
 
 
 # STORING THE FINAL OUTPUT
-coupons.to_parquet(config['output']['path'] + 'final_output.parquet')
+optimal_coupons.to_parquet(config['output']['path'] + 'optimal_coupons.parquet')
