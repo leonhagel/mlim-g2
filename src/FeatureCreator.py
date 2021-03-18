@@ -207,4 +207,5 @@ class FeatureCreator:
         dataset = dataset.merge(product_redemption, left_on='product', right_index=True)
         
         dataset = dataset.drop(columns=['week_hist', 'discount_received_weeks', 'discount_redeemed_weeks'])
+        dataset = dataset.sort_index()
         return dataset

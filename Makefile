@@ -1,32 +1,37 @@
 NAME?="mlim-g2"
-VIRTUALENV?=./env
+VIRTUALENV?=./.env
 PORT?=8888
 
 help:
 	@echo "Make targets:"
-	@echo "  build          install dependencies and prepare environment"
+	@echo "  build          install dependencies and prepare environment located at ./.env"
 	@echo "  build-lab      build + lab extensions"
 	@echo "  freeze         view installed packages"
 	@echo "  clean          remove *.pyc files and __pycache__ directory"
-	@echo "  distclean      remove virtual environment"
-	@echo "  run            run jupyter lab (default port $(PORT))"
+	@echo "  distclean      clean +  remove virtual environment"
+	@echo "  lab            run jupyter lab (default port $(PORT))"
+	@echo "  create-plots   create plots for the report"
+	@echo "  create         create final output containing the optimized coupons"
 	@echo "Check the Makefile for details"
 
 build:
+	mkdir cache; \
+	mkdir data; \
+	mkdir output; \
+	mkdir src; \
 	virtualenv  $(VIRTUALENV); \
 	source $(VIRTUALENV)/bin/activate; \
-	python3 -m pip install --upgrade pip; \
-	python3 -m pip install -r requirements.txt;
+	python -m pip install --upgrade pip; \
+	python -m pip install -r requirements.txt;
 
 build-lab: build
 	source $(VIRTUALENV)/bin/activate; \
 	jupyter labextension install jupyterlab-plotly@4.14.1; \
 	jupyter serverextension enable --py jupyterlab_code_formatter
-	python3 -m ipykernel install --user --name=$(NAME);
 
 freeze:
 	source $(VIRTUALENV)/bin/activate; \
-	pip freeze > freeze.txt
+	pip freeze
 
 clean:
 	find . -name '*.pyc' -delete
@@ -35,8 +40,15 @@ clean:
 
 distclean: clean
 	rm -rf $(VIRTUALENV)
-	yes | jupyter kernelspec uninstall $(NAME)
 
-run:
+lab:
 	source $(VIRTUALENV)/bin/activate; \
 	jupyter lab --port=$(PORT)
+
+create-plots:
+	source $(VIRTUALENV)/bin/activate; \
+	python src/clustering.py
+
+create:
+	source $(VIRTUALENV)/bin/activate; \
+	python src/init.py

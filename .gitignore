@@ -150,3 +150,4 @@ export/product_histories.parquet
 .freeze.txt.swp
 .freeze-before.txt.swp
 code/.FeatureCreator.py.swp
+*.parquet
