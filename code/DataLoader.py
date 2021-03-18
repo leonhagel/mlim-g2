@@ -193,7 +193,7 @@ class DataLoader:
         return redemption_rate, costumer_redemption_rate, discount_buy
         
         
-    def get_elasticities(self, name):
+    def get_elasticities(self):
         '''
         Calculate week and product specific price elasticities using all shoppers
         '''
