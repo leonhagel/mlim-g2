@@ -36,19 +36,19 @@ __Semester:__ WS 2020/21 <br>
 1. Clone the mlim-g2 repository from github.
 1. Copy the input data provided via moodle to `./input`.
 1. Run `make build` or `make build-lab` to create the virtual environment located at `./.env`.
-1. Run `make create` to create our final output containing the optimized coupons.
+1. Run `make create-coupons` to create our optimal coupons and save them in the ouput directory.
 
 ## Makefile targets
 
 ```
-build          install dependencies and prepare environment located at ./.env
-build-lab      build + lab extensions
-freeze         view installed packages
-clean-cache    remove all files in the cache directory
-clean          clean-cache + remove *.pyc files and __pycache__ directory
-distclean      clean + remove virtual environment
-lab            run jupyter lab (default port 8888)
-create         create final output containing the optimized coupons
+build            install dependencies and prepare environment located at ./.env
+build-lab        build + lab extensions
+freeze           view installed packages
+clean-cache      remove all files in the cache directory
+clean            clean-cache + remove *.pyc files and __pycache__ directory
+distclean        clean + remove virtual environment
+lab              run jupyter lab (default port 8888)
+create-coupons   create optimal coupons and write parquet to output directory
 ```
 
 ## References
