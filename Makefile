@@ -7,7 +7,8 @@ help:
 	@echo "  build          install dependencies and prepare environment located at ./.env"
 	@echo "  build-lab      build + lab extensions"
 	@echo "  freeze         view installed packages"
-	@echo "  clean          remove *.pyc files and __pycache__ directory"
+	@echo "  clean-cache    remove all files in the cache directory"
+	@echo "  clean          clean-cache + remove *.pyc files and __pycache__ directory"
 	@echo "  distclean      clean +  remove virtual environment"
 	@echo "  lab            run jupyter lab (default port $(PORT))"
 	@echo "  create-plots   create plots for the report"
@@ -33,7 +34,11 @@ freeze:
 	source $(VIRTUALENV)/bin/activate; \
 	pip freeze
 
-clean:
+clean-cache:
+	rm -rf ./cache; \
+	mkdir cache; 
+
+clean: clean-cache
 	find . -name '*.pyc' -delete
 	find . -name '__pycache__' -type d | xargs rm -fr
 	find . -name '.ipynb_checkpoints' -type d | xargs rm -fr
@@ -51,4 +56,4 @@ create-plots:
 
 create:
 	source $(VIRTUALENV)/bin/activate; \
-	python src/init.py
+	python src/create.py

@@ -7,7 +7,7 @@ import Utils
 class DataLoader:
     
     def __init__(self, config):
-        self.expected_input = ['baskets', 'coupons', 'coupons_index']
+        self.expected_input = ['baskets', 'coupons', 'coupon_index']
         self.config = config
         
 

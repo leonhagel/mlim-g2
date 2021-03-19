@@ -4,7 +4,7 @@
         "files": {
             "baskets": "baskets.parquet",
             "coupons": "coupons.parquet",
-            "coupons_index": "coupon_index.parquet"          
+            "coupon_index": "coupon_index.parquet"          
         }
     },
     "model": {

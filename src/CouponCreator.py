@@ -3,22 +3,26 @@ import numpy as np
 
 class CouponCreator():
 
-    def __init__(self, model):
+    def __init__(self, model, config):
         
         self.model = model
+        self.config = config
         self.revenues = None
-        self.discounts = None
-        self.n_coupons = None
         self.top_coupons = None
 
-    def get_top_coupons(self, discounts, X_template, n_coupons=5):
-        revenue = self.get_revenue(X_template, discounts)
-        top_coupons = self.create_top_coupons(revenue, n_coupons=n_coupons)
+    def get_top_coupons(self):
+        revenue = self.get_revenue()
+        top_coupons = self.create_top_coupons(revenue)
         return top_coupons
         
     # expected revenue
     # ----------------------------------------------------------------------------------
-    def get_revenue(self, X_template, discounts):
+    def get_revenue(self):
+        
+        discounts = self.config['model']['discounts']
+        X_template = self.model.X_test.copy()
+        X_template['discount'] = None
+        X_template['substitue_discount'] = 0
         
         discount_values = [0] + discounts
         X = self._add_discounts(X_template, discount_values)
@@ -41,9 +45,7 @@ class CouponCreator():
         self.revenue = revenue
         return revenue
 
-    def _add_discounts(self, X_template, discounts):
-        
-        self.discounts = discounts
+    def _add_discounts(self, X_template, discounts):   
         X = pd.DataFrame()
         template = X_template.copy()
         for discount in discounts:
@@ -54,11 +56,12 @@ class CouponCreator():
     
     # extracting top coupons
     # ----------------------------------------------------------------------------------
-    def create_top_coupons(self, revenue, n_coupons=5):
-        self.n_coupons = n_coupons
+    def create_top_coupons(self, revenue):
+        n_coupons = self.config['model']['n_coupons']
+        shoppers = range(self.config['model']['n_shoppers'])
         # calculating the top coupons
         coupons = {}
-        for shopper in range(250):
+        for shopper in shoppers:
             coupons[shopper] = self._create_top_coupons(revenue, shopper, n_coupons)    
         # creating the final output
         output = list(coupons.values())[0]
@@ -67,6 +70,13 @@ class CouponCreator():
             coupon["coupon"] = range(n_coupons)
             output = output.append(coupon)
         output = output[["shopper", "week", "coupon", "product", "discount"]]
+        # converting dtypes
+        output['shopper'] = output['shopper'].astype('int64')
+        output['week'] = output['week'].astype('int64')
+        output['coupon'] = output['coupon'].astype('int64')
+        output['product'] = output['product'].astype('int64')
+        output['discount'] = output['discount'].astype('float64')
+        
         self.top_coupons = output
         return output
 

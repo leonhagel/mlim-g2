@@ -36,20 +36,22 @@ __Semester:__ WS 2020/21 <br>
 1. Clone the mlim-g2 repository from github.
 1. Copy the input data provided via moodle to `./data`.
 1. Run `make build` or `make build-lab` to create the virtual environment located at `./.env`.
-1. Run `make run` to create our final output containing the optimized coupons.
+1. Run `make create` to create our final output containing the optimized coupons.
 
 ## Makefile targets
 
 ```
 build          install dependencies and prepare environment located at ./.env
-build-lab      build + lab extensions"
-freeze         view installed packages"
-clean          remove *.pyc files and __pycache__ directory
-distclean      clean + remove virtual environment
-lab            run jupyter lab (default prot 8888)
+build-lab      build + lab extensions
+freeze         view installed packages
+clean-cache    remove all files in the cache directory
+clean          clean-cache + remove *.pyc files and __pycache__ directory
+distclean      clean +  remove virtual environment
+lab            run jupyter lab (default port 8888)
 create-plots   create plots for the report
 create         create final output containing the optimized coupons
 ```
+
 ## References
 
 This readme and the makefile are based on the files used by Dr. Sebastian Gabel in the GitHub repository for the course ([sbstn-gbl/mlim](https://github.com/sbstn-gbl/mlim "Repository for Course Machine Learning in Marketing")).
