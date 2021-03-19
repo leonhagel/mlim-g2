@@ -1,0 +1,22 @@
+{
+    "input": {
+        "path": "../input/",
+        "files": {
+            "baskets": "baskets.parquet",
+            "coupons": "coupons.parquet",
+            "coupon_index": "coupon_index.parquet"          
+        }
+    },
+    "model": {
+        "test_week": 90,
+        "n_shoppers": 2000,
+        "n_products": 250,
+        "train_window": 4,
+        "trend_windows": [1, 3, 5],
+        "n_coupons": 5,
+        "discounts": [0.15, 0.2, 0.25, 0.3]
+    },
+    "output": {
+        "path": "../output/"
+    }
+}
