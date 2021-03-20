@@ -53,4 +53,4 @@ create-coupons   create optimal coupons and write parquet to output directory
 
 ## References
 
-This readme and the makefile are based on the files used by Dr. Sebastian Gabel in the GitHub repository for the course ([sbstn-gbl/mlim](https://github.com/sbstn-gbl/mlim "Repository for Course Machine Learning in Marketing")).
+This readme and the makefile are based on the files used by Dr. Sebastian Gabel in the GitHub repository for the course Machine Learning in Marketing ([sbstn-gbl/mlim](https://github.com/sbstn-gbl/mlim "Repository for Course Machine Learning in Marketing")).
