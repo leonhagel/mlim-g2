@@ -16,7 +16,7 @@ help:
 
 build:
 	mkdir cache; \
-	mkdir data; \
+	mkdir input; \
 	mkdir output; \
 	mkdir src; \
 	virtualenv  $(VIRTUALENV); \
