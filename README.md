@@ -34,8 +34,8 @@ __Semester:__ WS 2020/21 <br>
 ## Running our coupon optimization
 
 1. Clone the mlim-g2 repository from github.
-1. Copy the input data provided via moodle to `./input`.
 1. Run `make build` or `make build-lab` to create the virtual environment located at `./.env`.
+1. Copy the input data provided via moodle to `./input`.
 1. Run `make create-coupons` to create our optimal coupons and save them in the ouput directory.
 
 ## Makefile targets
